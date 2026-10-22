@@ -1,0 +1,96 @@
+--- a/bsd/dev/sweet_usb.c	2026-10-22 16:17:50
++++ b/bsd/dev/sweet_usb.c
+@@ -40,6 +40,7 @@
+ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
+ void sweet_usb_probe(void);
+ static void sweet_usb_gadget_start(vm_offset_t dwc);
++static void lisa_usb_femto_state(vm_offset_t gcc);
+ extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
+ 
+ #define GCC_PA                  0x00100000
+@@ -132,6 +133,85 @@
+ 	 * PLL_CORE_INPUT_OVERRIDE 0x0a8, TEST1 0x254. */
+ 	printf("SWEET USB: QUSB2 PLL_STATUS 0x%08x PWR_CTRL1 0x%08x PORT_TUNE1 0x%08x TEST1 0x%08x\n",
+ 	    usb_rd(phy, 0x1a0), usb_rd(phy, 0x210), usb_rd(phy, 0x240), usb_rd(phy, 0x254));
++	lisa_usb_femto_state(gcc);
++}
++
++/*
++ * lisa (SM7325) fast-path state, printed read-only for every sweetusb>=1
++ * boot (the capture survives in pram and reaches the shim screen):
++ *  - the HS PHY is the snps-femto at 0x088e3000 (DT reg size 0x114;
++ *    Linux phy-qcom-snps-femto-v2.c register layout), not sweet's QUSB2.
++ *    Its power-up sequence (Linux qcom_snps_hsphy_init) programs, in
++ *    order: CFG0 override, UTMI_CTRL5 POR, COMMON0 FSEL=19.2M, COMMON1
++ *    PLLBTUNE, REFCLK_CTRL sel=2, COMMON1 VBUSVLDEXTSEL0, CTRL1
++ *    VBUSVLDEXT0, COMMON2 VREGBYPASS, CTRL2 SUSPEND_N_SEL|SUSPEND_N,
++ *    UTMI_CTRL0 SLEEPM, COMMON0 SIDDQ clear, POR release, CTRL2 sel
++ *    clear, CFG0 override clear. For now only report the registers ABL
++ *    left behind.
++ *  - the GCC offsets also differ from SM7150: master CBCR 0xf010 (same),
++ *    sleep 0xf018, mock-utmi 0xf01c, postdiv 0xf050, aux 0xf064,
++ *    pipe mux 0xf060, cfg-noc-axi 0xf07c, aggre-axi 0xf080
++ *    (Linux gcc-yupik.c / SM7325). The eud_enable_reg (DT reg 2) sits at
++ *    0x88e2000, where sweet's QUSB2 starts.
++ *  - QSCRATCH at core+0xf8800 is inside the DT core window 0xa600000/
++ *    0x100000, same arrangement as sweet.
++ */
++#define FEMTO_PA 0x088e2000UL	/* eud_enable word; femto regs start +0x1000 */
++#define FEMTO_EUD 0x0UL
++#define FEMTO_PHY 0x1000UL
++
++static const struct {
++	const char *name;
++	uint32_t off;
++} femto_regs[] = {
++	{ "utmi_ctrl0",    0x3c },
++	{ "utmi_ctrl1",    0x40 },
++	{ "utmi_ctrl5",    0x50 },
++	{ "common0",       0x54 },
++	{ "common1",       0x58 },
++	{ "common2",       0x5c },
++	{ "hs_ctrl1",      0x60 },
++	{ "hs_ctrl2",      0x64 },
++	{ "override_x0",   0x6c },
++	{ "cfg0",          0x94 },
++	{ "refclk_ctrl",   0xa0 },
++};
++
++static const struct {
++	const char *name;
++	uint32_t off;
++} lisa_cbcr[] = {
++	{ "gdsc?(7150far)", 0x0f004 },
++	{ "master",         0x0f010 },
++	{ "sleep",          0x0f018 },
++	{ "mock-utmi",      0x0f01c },
++	{ "postdiv",        0x0f050 },
++	{ "pipe-src",       0x0f060 },
++	{ "aux",            0x0f064 },
++	{ "cfg-noc-axi",    0x0f07c },
++	{ "aggre-axi",      0x0f080 },
++	{ "ahb2phy?(7150)", 0x06a004 },
++};
++
++static void lisa_usb_femto_state(vm_offset_t gcc)
++{
++	vm_offset_t femto = ml_io_map(FEMTO_PA, 0x1400);
++	if (femto == 0) {
++		printf("SWEET USB: lisa femto map failed\n");
++		return;
++	}
++	if (!(usb_rd(gcc, 0x6a004) & CBCR_CLK_OFF)) {
++		for (unsigned i = 0; i < sizeof(femto_regs) / sizeof(femto_regs[0]); i++)
++			printf("SWEET USB: FEMTO %-14s 0x%03x 0x%08x\n", femto_regs[i].name,
++			    femto_regs[i].off, usb_rd(femto, FEMTO_PHY + femto_regs[i].off));
++	} else {
++		printf("SWEET USB: ahb2phy(6a004) off; FEMTO not read\n");
++	}
++	/* DT reg-names[1] = eud_enable_reg, one 32-bit word at 0x88e2000 */
++	printf("SWEET USB: eud_enable 0x%08x\n", usb_rd(femto, FEMTO_EUD));
++	for (unsigned i = 0; i < sizeof(lisa_cbcr) / sizeof(lisa_cbcr[0]); i++)
++		printf("SWEET USB: lisaCLK %-14s 0x%06x 0x%08x\n", lisa_cbcr[i].name,
++		    lisa_cbcr[i].off, usb_rd(gcc, lisa_cbcr[i].off));
+ }
+ 
+ /*
