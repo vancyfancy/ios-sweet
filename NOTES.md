@@ -50,6 +50,59 @@ console, screenshots, and a working SM7325 GPU/WiFi/touch reference to
 diff against). NOT a merge candidate (different kernel base + config
 philosophy).
 
+### >>> UPDATE 2026-10-22 NIGHT (agent session 3): pram panic-capture shim; phone went silent after boot8 <<<
+Started from the green 0083 CI kernel (run 39740661473, sha256
+`78f07c13c209f228923aedcbc84cbcb14b0b9c707a3a3d034ecd34b09b988697`, in
+`_lisa/ci-kernel/kernel.development.lisa` — note: same byte size as the old
+kernel, different sha), then paused hardware work on **boot8's anomaly:
+
+**BOOT8 (image `_lisa/boot-images/shim-lisa-boot8-pram.img`, sha256
+`70f964ff7a0d7e86aed7ed54e2cabb2b7e2cd6cd76a9d4f0f1fee8e6ca091417`):
+`fastboot boot` = OKAY, device vanished at +1 s, **never returned to
+fastboot through 420 s+** (every modeled chain predicts 90–240 s:
+90 s hold + reset(9) ≈ 110–125 s; UFS diag path ≈ 225–240 s; kernel
+panic path ≈ 60–95 s). USB bus re-scanned healthy-but-empty. A
+background `fastboot devices` watcher was left running (30 s interval,
+writes `/tmp/lisa_back.flg` when it returns). **If the phone does not
+come back by itself, the revival is physical: press power (short press
+first).** Observations/notes that matter for the post-revival boot:
+- Boot8 shim (commit `dd50fb0`) is the **pram panic-capture shim**: the
+  kernel's pram (0x7FF00000 = last MiB of the relocated bank, wired by
+  loader.c PHYSFIX) is where xnu buffers *all* printf output
+  (osfmk/kern/debug.c debug_log_init: debug_buf_base = gPanicBase +
+  sizeof embedded_panic_header), and on panic stamps "KNUF"
+  (0x46554E4B) + eph_panic_log_offset(+0x10)/eph_panic_log_len(+0x14).
+  The shim reads that header on every boot, prints the last ~880 bytes
+  of the captured log onscreen when a valid header exists, and holds
+  the screen 90 s on the boot right after a kernel run (alternating
+  boot counter at pram+0xFF000, magic "BOOT"). So one boot cycle = one
+  readable panic, no kernel changes. The console got a new con_line()
+  (raw 40-col lines) and the host tests were re-fixed (delay_ms/reset
+  stubs, 29/29 PASS).
+- **the very first boot8 readback may already show the PANIC REASON**:
+  boots 6/7 already panicked-and-rebooted with the pram wired, so if
+  RAM survives ABL restarts, `KLOG len>0` on the first hold boot and
+  its tail = the answer to the 40–70 s wall.
+- debug flag note (osfmk/kern/debug.h): **DB_HALT=0x1**; the default
+  cmdline `debug=0xc` = DB_NMI|DB_KPRT (no halt) = panic→reboot cycle
+  preserved. `debug=0xd` would freeze at the panic (0083 + DB_HALT) —
+  use only when a human is around to read.
+
+**No-phone work completed this session:**
+- **0084-lisa-usb-femto-state.patch** (commit `481864c`, CI LISA run
+  **39747166842** queued; the patch push also triggers a SWEET-regression
+  run): read-only report of lisa's actual USB state so the next boot
+  puts it in pram: 11 femto registers at 0x88e3000 (sweet = QUSB2),
+  the eud_enable word at 0x88e2000 (DT reg-names[1]), and the SM7325
+  GCC offsets from Linux gcc-yupik.c (master 0xf010 = same as sweet,
+  sleep 0xf018, mock-utmi 0xf01c, postdiv 0xf050, pipe 0xf060,
+  aux 0xf064, cfg-noc-axi 0xf07c, aggre-axi 0xf080). The full femto
+  power-up sequence (Linux qcom_snps_hsphy_init) is recorded in the
+  patch comment for the follow-up write patch (0085).
+- HackiOS study absorbed into the first NOTE block of this session
+  (their loader_return/architecture is the strategic fallback; their
+  numbers = redwood SM7325 same generation).
+
 ### >>> UPDATE 2026-10-22 EVENING: LISA live bring-up — shim XPU wall broken, LISA KERNEL BOOTS AND RUNS <<<
 Phone present (fastboot product=lisa, serial `5b49cac8`, unlocked). Boots 1–7
 were run as temporary `fastboot boot` only; Android untouched.
