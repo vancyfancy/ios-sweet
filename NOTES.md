@@ -2,6 +2,77 @@
 
 ## Agent handoff / active work (2026-10-15, latest)
 
+### >>> UPDATE 2026-10-22: lisa port groundwork (no phone; phone not found) <<<
+
+**Mission:** port ios-sweet to **lisa** (Mi 11 Lite 5G NE, SM7325-Abyss / SD778G+).
+Phone unavailable, so everything below was done without it. All lisa research
+lives in `_lisa/` on this Mac (gitignored); facts in `docs/lisa-port.md`.
+
+**Fork workflow:** the upstream `dipa-studio/ios-sweet` auth
+(`vancyfancy`) is read-only — all CI runs happen on the fork
+`vancyfancy/ios-sweet` (`gh workflow run xnu.yml -R vancyfancy/ios-sweet -f
+machine_config=LISA`). `CI concurrency: one run per ref; dispatch LISA and
+SWEET runs separately or they cancel each other.
+
+**Toolchain enabled on this Mac:** vendored `tools/mkbootimg.py` (AOSP,
+v2 verified); `shim/build.sh` now cross-compiles on macOS with brew
+`aarch64-elf-gcc` 16.2.0 (`CC`/`DTB` env overrides; `tools/payload-peek.py`
+extracts OTA payload partitions, hash-verified). A full lisa boot image can
+be assembled locally: `python3 tools/mkadt.py adt-lisa --machine=lisa` +
+`mkpayload` + `shim/build.sh` with `DTB=_lisa/rom/parts/merged/lisa-base07.dtb`.
+
+**Kernel support (LISA machine config), committed + pushed to the fork:**
+- commits `d1535b3` → `78e95a6` → `60674ed`: `xnu/patches/0082-lisa-machine-config.patch`
+  (80 modified + 3 new files; verified to reproduce `_lisa/buildtree/xnu`
+  byte-for-byte on a clean 0081 base). `MACHINE_CONFIG=LISA` builds
+  `kernel.development.lisa`: new QCOM.h shared config + LISA.h, QCOM rename,
+  guard broadening in ~50 C files, stage scripts 0019/0020/0026 run for both,
+  and Makefile-level gates (`libkern` bearssl paths, `bsd` libpthread/HFS
+  paths) accept SWEET **and LISA** via `$(filter ...)`.
+- CI so far: 39717245892 FAIL (proc_reg.h `#elif defined (SWEET)` space
+  variant) → 78e95a6 fix; 39718123551 FAIL (Makefile `ifeq(SWEET)` gates) →
+  60674ed fix; **39719773276 SUCCESS (kernel.development.lisa builds green,
+  8m48s)** and **39720928334 SUCCESS (SWEET regression also green)** — both
+  machine configs verified with 0082. mkadt lisa branch committed `07c8d3e`
+  and pushed to the fork.
+
+**Stock-DTB facts (observations, from the MIUI V13.0.8.0.SKOMIXM OTA):**
+- boot.img is **header v3** (kernel 47.5 MB + ramdisk); the nine platform
+  base DTBs are in vendor_boot.img, overlays in dtbo.img; **lisa = base07
+  (qcom,yupik) ⊕ dtbo entry 16** merged with `fdtoverlay` →
+  `_lisa/rom/parts/merged/lisa-base07.dtb` (08 = yupikp, differs only in
+  root node).
+- framebuffer: `splash_region @0xe1000000 size 0x2300000` (32 MiB) — use
+  for the shim console on lisa.
+- TLMM `pinctrl@f000000` reg 16 MiB (sweet: 0x39xxxxxx) — per-pin 0x1000
+  stride; touch reset tlmm 105, IRQ tlmm 81.
+- reserved-memory: carve-outs start at 0x80000000 (hyp) and run past
+  0xd7f80000; the **low bank 0x40000000..0x7fffffff is clear** in the
+  compiled tree → first-guess lisa physmap = 0x40000000 + 1 GiB (GUESS —
+  live FDT is ground truth; reads `mem-offline` node only as a hint).
+- arch timer 19.2 MHz, PPIs 27-30 in the DTB; `QCOM_VTIMER_INTID=19` kept
+  (proven on SM7150) — **verify on first lisa boot** which INTID fires.
+- panel: compiled `dsi-default-panel` = simulator node; the real k9d panel
+  is runtime-selected (phase-2 hardware question; shim console path unaffected).
+- identity: ADT keeps D22AP/iPhone10,3 with `xiaomi,lisa`+`qcom,sm7325`
+  appended (`tools/mkadt.py --machine=lisa`, commit `07c8d3e`).
+
+**Next steps (no phone needed):**
+1. Verify CI 39719773276; on green dispatch SWEET regression run.
+2. lisa-ify per-driver constants in a 0083+ patch series:
+   sweet_touch.c (GENI **SPI** SE13 @0xa94000, GT9897T `xiaomi,k9-spi`,
+   rails pm8350c L7C/L2C, wrapper1 S5 clock), sweet_keys.c (PMK8350 PON
+   @0x800 sid0 + PM7325 GPIO6 sid1), sweet_usb.c (femto HS phy
+   @0x88e3000, QSCRATCH layout verify), sweet_rpmh.c naming, kernel
+   physmap/sweet_early per-lisa map, mkbootimg params for lisa (stock
+   header v3 carries no DTB — decide shim header format vs ABL, likely
+   mirroring the lisa ABL's expectations; `fastboot boot` only).
+3. shim FDT self-config: extend shim/fdt.c to read /memory + splash from
+   the live FDT at boot and patch the payload ADT in place (kills the
+   guessed dram-base/fb constants on the first hardware boot).
+4. When the phone surfaces: `fastboot boot` a lisa image (boot only, no
+   flashing), live-verify map/timer/USB, then start the driver ladder.
+
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
 
 **STATE at end of 2026-10-18 (evening):**
