@@ -4,6 +4,8 @@ dtb/
 recovery/
 # third-party/Apple sources fetched for reading
 research/
+# lisa port local artifacts (ROM extracts, DTB, kernel sources, buildtree)
+_lisa/
 shim/out/
 xnu/out/
 xnu/out-*/

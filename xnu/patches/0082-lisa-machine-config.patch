@@ -1,0 +1,1586 @@
+--- a/bsd/dev/sweet_keys.c
++++ b/bsd/dev/sweet_keys.c
+@@ -4,7 +4,7 @@
+  * PMIC access is READ ONLY: the sole MMIO write issues EXT_READL on an
+  * observer channel. No PMIC config, IRQ acknowledge or reset writes exist.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <kern/clock.h>
+
+--- a/bsd/dev/sweet_rpmh.c
++++ b/bsd/dev/sweet_rpmh.c
+@@ -3,7 +3,7 @@
+  * Sole XNU apps-DRV owner, called from thread context with deep idle disabled.
+  * No sleep/wake programming, SPMI writes, GIC handler, or timeout recovery.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <sys/errno.h>
+
+--- a/bsd/dev/sweet_spmi.c
++++ b/bsd/dev/sweet_spmi.c
+@@ -5,7 +5,7 @@
+  * Init is serialized by the single built-in SweetBattery personality.
+  * Battery APIDs are disjoint from the existing keys' 008/4c1 APIDs.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <machine/machine_routines.h>
+
+--- a/bsd/dev/sweet_touch.c
++++ b/bsd/dev/sweet_touch.c
+@@ -5,7 +5,7 @@
+  * No firmware/config upload or direct PMIC writes. Only IC data write:
+  * zero to GT9896's event status after reading a report. See touch2/report.md.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <sys/errno.h>
+
+--- a/bsd/dev/sweet_ufs.c
++++ b/bsd/dev/sweet_ufs.c
+@@ -18,7 +18,7 @@
+  * against the partition bounds again right before it is issued, so nothing
+  * outside the named partition can be written.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <sys/buf.h>
+
+--- a/bsd/dev/sweet_usb.c
++++ b/bsd/dev/sweet_usb.c
+@@ -10,7 +10,7 @@
+  * DWC3 / PHY register blocks only when the GCC status registers say their
+  * power domain and clocks are on (an access to a gated block would hang).
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <kern/clock.h>
+
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -691,7 +691,7 @@
+ 	bsd_init_kprintf("calling vfsinit\n");
+ 	vfsinit();
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* AMFI's MAC policy is built in on SWEET (bsd/kern/sweet_amfi.c). */
+ 	extern void sweet_amfi_policy_register(void);
+ 	sweet_amfi_policy_register();
+@@ -933,7 +933,7 @@
+ 		if (require_rootauth) {
+ 			/* enforce sealedness */
+ 			int autherr = VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel());
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 			/*
+ 			 * SWEET has no chain of trust to extend: the kernel itself is
+ 			 * booted unsigned and there is no Image4/AMFI, and its HFS root
+
+--- a/bsd/kern/kern_core.c
++++ b/bsd/kern/kern_core.c
+@@ -117,7 +117,7 @@
+     thread_state_t tstate, mach_msg_type_number_t *count);
+ void task_act_iterate_wth_args(task_t, void (*)(thread_t, void *), void *);
+ 
+-#if defined(SECURE_KERNEL) || defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(SECURE_KERNEL) || defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET: off by default (sysctl kern.coredump=1 enables it). A crashing iOS
+  * daemon maps the whole shared region, so one core is gigabytes on the root
+
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -7411,7 +7411,7 @@
+ 				error = EACCES;
+ 				goto done;
+ 			}
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 			/* SWEET runs every iOS binary this way: one short line per exec. */
+ 			printf("exec %s\n", p->p_name);
+ #else
+
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1884,7 +1884,7 @@
+ 		subcode = ut->uu_subcode;
+ 		etype = ut->uu_exception;
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		if (p == current_proc()) {
+ 			extern void sweet_crash_log(const char *, int, int, uint64_t, uint64_t);
+ 			sweet_crash_log(p->p_comm, proc_getpid(p), WTERMSIG(rv),
+
+--- a/bsd/kern/kern_mib.c
++++ b/bsd/kern/kern_mib.c
+@@ -518,7 +518,7 @@
+ 		 * Deprecated variables.  We still support these for
+ 		 * backwards compatibility purposes only.
+ 		 */
+-#if XNU_TARGET_OS_OSX && defined(__arm64__) && !defined(ARM64_BOARD_CONFIG_SWEET)
++#if XNU_TARGET_OS_OSX && defined(__arm64__) && !defined(ARM64_BOARD_CONFIG_SWEET) && !defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* SWEET: the macOS config runs the iOS userland, which wants the
+ 	 * device-tree names (hw.machine iPhone10,3, hw.model D22AP). */
+ 	/* The following two are kludged for backward
+
+--- a/bsd/kern/kern_trustcache.c
++++ b/bsd/kern/kern_trustcache.c
+@@ -248,7 +248,7 @@
+ 	allow_legacy_caches = true;
+ #endif
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/*
+ 	 * Standalone SWEET bring-up has no AppleImage4/AMFI kexts. Represent
+ 	 * the missing service explicitly: no caches can be loaded or matched.
+@@ -493,7 +493,7 @@
+ 		return KERN_INVALID_ARGUMENT;
+ 	}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	if (trust_cache_rt == NULL) {
+ 		return KERN_NOT_FOUND;
+ 	}
+@@ -583,7 +583,7 @@
+ 		}
+ 	}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	if (trust_cache_rt == NULL) {
+ 		return KERN_NOT_SUPPORTED;
+ 	}
+@@ -695,7 +695,7 @@
+ 		panic("overflow on the module: %p | %lu", module_data, module_size);
+ 	}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	if (trust_cache_rt == NULL) {
+ 		return KERN_NOT_SUPPORTED;
+ 	}
+@@ -729,7 +729,7 @@
+ 		return KERN_INVALID_ARGUMENT;
+ 	}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	if (trust_cache_rt == NULL) {
+ 		if (query_type >= kTCQueryTypeTotal) {
+ 			return KERN_INVALID_ARGUMENT;
+@@ -946,7 +946,7 @@
+ 	*capabilities0_ret = kTCCapabilityNone;
+ 	*capabilities1_ret = kTCCapabilityNone;
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	if (trust_cache_rt == NULL) {
+ 		return KERN_NOT_SUPPORTED;
+ 	}
+
+--- a/bsd/kern/sweet_amfi.c
++++ b/bsd/kern/sweet_amfi.c
+@@ -22,7 +22,7 @@
+  * Interfaces no kernel path uses on SWEET (they serve other Apple kexts)
+  * panic with a clear message instead of being NULL.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <kern/debug.h>
+ #include <kern/startup.h>
+ #include <libkern/amfi/amfi.h>
+
+--- a/bsd/kern/syscalls.master
++++ b/bsd/kern/syscalls.master
+@@ -650,7 +650,7 @@
+ 432	AUE_NULL	ALL	{ int audit_session_port(au_asid_t asid, user_addr_t portnamep); }
+ 433	AUE_NULL	ALL	{ int pid_suspend(int pid); }
+ 434	AUE_NULL	ALL	{ int pid_resume(int pid); }
+-#if CONFIG_EMBEDDED || defined(ARM64_BOARD_CONFIG_SWEET)
++#if CONFIG_EMBEDDED || defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 435	AUE_NULL	ALL	{ int pid_hibernate(int pid); }
+ #else
+ 435     AUE_NULL        ALL     { int nosys(void); }
+
+--- a/bsd/net/rtsock.c
++++ b/bsd/net/rtsock.c
+@@ -510,7 +510,7 @@
+ 		SIN6(info.rti_info[RTAX_DST])->sin6_addr.s6_addr16[1] = 0;
+ 	}
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* SWEET: which process changes IPv4 routes (network bring-up). */
+ 	if ((rtm->rtm_type == RTM_ADD || rtm->rtm_type == RTM_DELETE || rtm->rtm_type == RTM_CHANGE) &&
+ 	    info.rti_info[RTAX_DST] != NULL && info.rti_info[RTAX_DST]->sa_family == AF_INET) {
+
+--- a/bsd/netinet/in.c
++++ b/bsd/netinet/in.c
+@@ -1210,7 +1210,7 @@
+ 	/* In case it's NULL, make sure it came from the kernel */
+ 	VERIFY(so != NULL || p == kernproc);
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* SWEET: which process sets IPv4 addresses on which interface. */
+ 	if ((cmd == SIOCAIFADDR || cmd == SIOCDIFADDR) && ifp != NULL) {
+ 		static int sweet_in_logged;
+
+--- a/bsd/pthread/sweet_pthread_init.c
++++ b/bsd/pthread/sweet_pthread_init.c
+@@ -1,5 +1,5 @@
+ /* Built-in provider: Apple libpthread-514.100.2, paired with xnu-8796.141.3. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_pthread_compat.h"
+ #include "sweet_libpthread/kern/kern_init.c"
+ 
+
+--- a/bsd/pthread/sweet_pthread_support.c
++++ b/bsd/pthread/sweet_pthread_support.c
+@@ -1,5 +1,5 @@
+ /* Built-in provider: Apple libpthread-514.100.2, paired with xnu-8796.141.3. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_pthread_compat.h"
+ #include "sweet_libpthread/kern/kern_support.c"
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+
+--- a/bsd/pthread/sweet_pthread_synch.c
++++ b/bsd/pthread/sweet_pthread_synch.c
+@@ -1,5 +1,5 @@
+ /* Built-in provider: Apple libpthread-514.100.2, paired with xnu-8796.141.3. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_pthread_compat.h"
+ #include "sweet_libpthread/kern/kern_synch.c"
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+
+--- a/bsd/sweet_hfs/core/hfs_catalog.c
++++ b/bsd/sweet_hfs/core/hfs_catalog.c
+@@ -757,7 +757,7 @@
+ }
+ 
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET: hard links made by Linux tools lack kHFSHasLinkChainBit and every
+  * lookup of them repairs (in memory) and reports it again; the console
+
+--- a/bsd/sweet_hfs/core/hfs_vfsutils.c
++++ b/bsd/sweet_hfs/core/hfs_vfsutils.c
+@@ -202,7 +202,7 @@
+ 	/* don't mount a writable volume if its dirty, it must be cleaned by fsck_hfs */
+ 	if ((hfsmp->hfs_flags & HFS_READ_ONLY) == 0 && hfsmp->jnl == NULL &&
+ 	    (SWAP_BE32(vhp->attributes) & kHFSVolumeUnmountedMask) == 0) {
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		/*
+ 		 * SWEET never unmounts its root (no clean shutdown yet), and
+ 		 * there is no fsck_hfs before the root mount: take it anyway.
+@@ -215,7 +215,7 @@
+ 			printf("hfs_mounthfsplus: cannot mount dirty non-journaled volumes\n");
+ 		}
+ 		return (EINVAL);
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		}
+ #endif
+ 	}
+
+--- a/bsd/sys/pthread_internal.h
++++ b/bsd/sys/pthread_internal.h
+@@ -34,7 +34,7 @@
+ 
+ struct ksyn_waitq_element {
+ #if __LP64__
+-	#if defined(ARM64_BOARD_CONFIG_SWEET)
++	#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* libpthread-514.100.2 includes the trailing kwe_uth pointer. */
+ 	char opaque[56];
+ #else
+
+--- a/bsd/vfs/kpi_vfs.c
++++ b/bsd/vfs/kpi_vfs.c
+@@ -4459,7 +4459,7 @@
+ 					_err = VNOP_RENAME(fdvp, *fvpp, fcnp, tdvp, *tvpp, tcnp, ctx);
+ 				}
+ 			}
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 			/*
+ 			 * SWEET: HFS has no RENAME_SWAP, which Foundation's atomic
+ 			 * writes use (usermanagerd: "Failed to atomically swap writing
+
+--- a/bsd/vfs/vfs_subr.c
++++ b/bsd/vfs/vfs_subr.c
+@@ -1257,7 +1257,7 @@
+ 
+ 		mp = vfs_rootmountalloc_internal(vfsp, "root_device");
+ 		mp->mnt_devvp = rootvp;
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		/*
+ 		 * SWEET has no data volume: /private/var lives on the root, so
+ 		 * boot-arg rootrw=1 mounts it read-write from the start.
+
+--- a/bsd/vm/vm_unix.c
++++ b/bsd/vm/vm_unix.c
+@@ -1755,7 +1755,7 @@
+ 	return error;
+ }
+ 
+-#if !XNU_TARGET_OS_OSX || defined(ARM64_BOARD_CONFIG_SWEET)
++#if !XNU_TARGET_OS_OSX || defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET runs the iOS userland on the macOS config: SpringBoard calls
+  * pid_hibernate when an app leaves the foreground, and nosys (SIGSYS)
+
+--- a/iokit/Kernel/IOService.cpp
++++ b/iokit/Kernel/IOService.cpp
+@@ -5126,7 +5126,7 @@
+ 	bool                wasHiding;
+ 
+ 	iomediaClass = OSMetaClass::getMetaClassWithName(gIOMediaKey);
+-#if !defined(ARM64_BOARD_CONFIG_SWEET)
++#if !defined(ARM64_BOARD_CONFIG_SWEET) && !defined(ARM64_BOARD_CONFIG_LISA)
+ 	assert(iomediaClass);
+ #endif
+ 
+@@ -5137,7 +5137,7 @@
+ 	}
+ 	UNLOCKNOTIFY();
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/* SWEET has no IOStorageFamily: without the IOMedia class no media exists to unhide. */
+ 	if (!iomediaClass) {
+ 		wasHiding = false;
+@@ -5188,7 +5188,7 @@
+ 	bool unhide;
+ 
+ 	ioblockstoragedriverClass = OSMetaClass::getMetaClassWithName(gIOBlockStorageDriverKey);
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	/*
+ 	 * SWEET has no IOStorageFamily, so no service can be a block storage
+ 	 * driver: the root (e.g. a RAM disk) is not block media, as for image boot.
+
+--- a/iokit/Kernel/IOUserClient.cpp
++++ b/iokit/Kernel/IOUserClient.cpp
+@@ -2600,7 +2600,7 @@
+ }
+ 
+ static 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET IOKit trace: registry and matching calls made by the processes
+  * named in boot-arg sweetiolog (comma separated, default "backboardd,SpringBoard";
+@@ -2675,7 +2675,7 @@
+ 	if ((dict = OSDynamicCast( OSDictionary, obj))) {
+ 		IOTaskRegistryCompatibilityMatching(current_task(), dict);
+ 		OSIterator *found = IOService::getMatchingServices( dict );
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		char sname[32];
+ 		if (sweet_iolog(sname, sizeof(sname))) {
+ 			unsigned int count = 0;
+@@ -2775,7 +2775,7 @@
+ 		IOTaskRegistryCompatibilityMatching(current_task(), dict);
+ 		*service = IOService::copyMatchingService( dict );
+ 		kr = *service ? kIOReturnSuccess : kIOReturnNotFound;
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		char sname[32];
+ 		if (sweet_iolog(sname, sizeof(sname))) {
+ 			sweet_iolog_dict(sname, "matching1", dict,
+@@ -2885,7 +2885,7 @@
+ 			continue;
+ 		}
+ 		IOTaskRegistryCompatibilityMatching(current_task(), dict);
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		{
+ 			char sname[32];
+ 			if (sweet_iolog(sname, sizeof(sname))) {
+@@ -3360,7 +3360,7 @@
+ 	}
+ 
+ 	entry = IORegistryEntry::fromPath( path );
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	{
+ 		char sname[32];
+ 		if (sweet_iolog(sname, sizeof(sname))) {
+@@ -4178,7 +4178,7 @@
+ 
+ 	*iterator = IOUserIterator::withIterator(entry->getChildIterator(
+ 		    IORegistryEntry::getPlane( plane )));
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	{
+ 		char sname[32];
+ 		if (sweet_iolog(sname, sizeof(sname))) {
+@@ -4401,7 +4401,7 @@
+ #endif
+ 		res = service->newUserClient( owningTask, (void *) owningTask,
+ 		    connect_type, propertiesDict, &client );
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 		{
+ 			char sname[32];
+ 			if (sweet_iolog(sname, sizeof(sname))) {
+
+--- a/iokit/Kernel/arm/SweetBattery.cpp
++++ b/iokit/Kernel/arm/SweetBattery.cpp
+@@ -4,7 +4,7 @@
+  * SOC is an UNCALIBRATED estimate, not a replacement for the Linux QG algo.
+  * See report.md for binary evidence, register provenance and integration.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <device/device_types.h> /* io_buf_ptr_t for private OSKext headers */
+ #include <IOKit/IOLib.h>
+ #include <IOKit/IOWorkLoop.h>
+
+--- a/iokit/Kernel/arm/SweetCPU.cpp
++++ b/iokit/Kernel/arm/SweetCPU.cpp
+@@ -5,7 +5,7 @@
+  */
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOCPU.h>
+ #include <IOKit/IOLib.h>
+ #include <libkern/c++/OSData.h>
+@@ -223,7 +223,7 @@
+ 	uint64_t sgi = (((mpidr >> 32) & 0xff) << 48) |
+ 	    (((mpidr >> 16) & 0xff) << 32) |
+ 	    (((mpidr >> 8) & 0xff) << 16) |
+-	    ((uint64_t)SWEET_IPI_SGI << 24) | (1ULL << aff0);
++	    ((uint64_t)QCOM_IPI_SGI << 24) | (1ULL << aff0);
+ 	__builtin_arm_dsb(DSB_ISHST);
+ 	__builtin_arm_wsr64("ICC_SGI1R_EL1", sgi);
+ 	__builtin_arm_isb(ISB_SY);
+
+--- a/iokit/Kernel/arm/SweetEntitlements.cpp
++++ b/iokit/Kernel/arm/SweetEntitlements.cpp
+@@ -10,7 +10,7 @@
+  */
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOLib.h>
+ #include <libkern/c++/OSArray.h>
+ #include <libkern/c++/OSBoolean.h>
+
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -38,7 +38,7 @@
+ 
+ extern "C" int sweet_console_muted;     /* osfmk/console/serial_console.c */
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOService.h>
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+
+--- a/iokit/Kernel/arm/SweetKeyStore.cpp
++++ b/iokit/Kernel/arm/SweetKeyStore.cpp
+@@ -16,7 +16,7 @@
+  */
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOService.h>
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+
+--- a/iokit/Kernel/arm/SweetPlatformExpert.cpp
++++ b/iokit/Kernel/arm/SweetPlatformExpert.cpp
+@@ -5,7 +5,7 @@
+  */
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOPlatformExpert.h>
+ #include <IOKit/IODeviceTreeSupport.h>
+ #include <IOKit/IOLib.h>
+
+--- a/iokit/Kernel/arm/SweetSurface.cpp
++++ b/iokit/Kernel/arm/SweetSurface.cpp
+@@ -27,7 +27,7 @@
+  */
+ #include "SweetSurface.h"
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOService.h>
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+
+--- a/iokit/Kernel/arm/SweetSurface.h
++++ b/iokit/Kernel/arm/SweetSurface.h
+@@ -10,7 +10,7 @@
+ 
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOMemoryDescriptor.h>
+ #include <IOKit/IOBufferMemoryDescriptor.h>
+ #include <libkern/c++/OSObject.h>
+
+--- a/iokit/Kernel/arm/SweetWatchdog.cpp
++++ b/iokit/Kernel/arm/SweetWatchdog.cpp
+@@ -16,7 +16,7 @@
+  */
+ #include <pexpert/arm64/board_config.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <IOKit/IOService.h>
+ #include <IOKit/IOUserClient.h>
+ #include <IOKit/IOKitKeys.h>
+
+--- a/iokit/KernelConfigTables.cpp
++++ b/iokit/KernelConfigTables.cpp
+@@ -34,7 +34,7 @@
+ 
+ const char * gIOKernelConfigTables =
+     "("
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+     "   {"
+     "     'IOClass'         = SweetPlatformExpert;"
+     "     'IOProviderClass' = IOPlatformExpertDevice;"
+
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -766,7 +766,7 @@
+ 		}
+ 	}
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ //
+ //	SWEET: root on a GPT partition of the internal UFS (bsd/dev/sweet_ufs.c)
+ //
+
+--- a/libkern/crypto/corecrypto_aes.c
++++ b/libkern/crypto/corecrypto_aes.c
+@@ -32,7 +32,7 @@
+ #include <corecrypto/ccaes.h>
+ #include <kern/debug.h>
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /* SWEET has a built-in portable AES provider for the legacy CBC/ECB API. */
+ extern const struct ccmode_cbc sweet_aes_cbc_encrypt;
+ extern const struct ccmode_cbc sweet_aes_cbc_decrypt;
+
+--- a/libkern/crypto/corecrypto_md5.c
++++ b/libkern/crypto/corecrypto_md5.c
+@@ -17,7 +17,7 @@
+ }
+ 
+ /* Copy a ccdigest ctx into a legacy MD5 context */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET has no corecrypto kext (g_crypto_funcs stays NULL). MD5 uses
+  * BearSSL's portable implementation (libkern/crypto/sweet_md5.c), with
+
+--- a/libkern/crypto/corecrypto_sha1.c
++++ b/libkern/crypto/corecrypto_sha1.c
+@@ -16,7 +16,7 @@
+ 	ctx->c.b64[0] = count;
+ }
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET has no corecrypto kext (g_crypto_funcs stays NULL). SHA-1 uses
+  * BearSSL's portable implementation (libkern/crypto/sweet_sha1.c), with
+
+--- a/libkern/crypto/corecrypto_sha2.c
++++ b/libkern/crypto/corecrypto_sha2.c
+@@ -34,7 +34,7 @@
+ 
+ #if defined(CRYPTO_SHA2)
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET has no corecrypto kext, so g_crypto_funcs stays NULL. SHA-256 uses
+  * XNU's built-in implementation directly, as the SWEET PRNG does; this also
+@@ -84,7 +84,7 @@
+ 	ccdigest_final(di, ctx->ctx, digest);
+ }
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/inc/bearssl_hash.h"
+ 
+ _Static_assert(sizeof(br_sha384_context) <= sizeof(SHA512_CTX),
+
+--- a/libkern/crypto/sweet_aes.c
++++ b/libkern/crypto/sweet_aes.c
+@@ -4,7 +4,7 @@
+  * No heap, SIMD or CPU crypto extension is needed. Contexts can be copied:
+  * their only pointer is the immutable BearSSL class descriptor.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <libkern/libkern.h>
+ #include <libkern/crypto/aes.h>
+ #include <corecrypto/ccmode.h>
+
+--- a/libkern/crypto/sweet_aes_ct.c
++++ b/libkern/crypto/sweet_aes_ct.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/symcipher/aes_ct.c"
+ #endif
+
+--- a/libkern/crypto/sweet_aes_ct_cbcdec.c
++++ b/libkern/crypto/sweet_aes_ct_cbcdec.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/symcipher/aes_ct_cbcdec.c"
+ #endif
+
+--- a/libkern/crypto/sweet_aes_ct_cbcenc.c
++++ b/libkern/crypto/sweet_aes_ct_cbcenc.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/symcipher/aes_ct_cbcenc.c"
+ #endif
+
+--- a/libkern/crypto/sweet_aes_ct_dec.c
++++ b/libkern/crypto/sweet_aes_ct_dec.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/symcipher/aes_ct_dec.c"
+ #endif
+
+--- a/libkern/crypto/sweet_aes_ct_enc.c
++++ b/libkern/crypto/sweet_aes_ct_enc.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/symcipher/aes_ct_enc.c"
+ #endif
+
+--- a/libkern/crypto/sweet_dec32be.c
++++ b/libkern/crypto/sweet_dec32be.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/dec32be.c"
+ #endif
+
+--- a/libkern/crypto/sweet_dec32le.c
++++ b/libkern/crypto/sweet_dec32le.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/dec32le.c"
+ #endif
+
+--- a/libkern/crypto/sweet_dec64be.c
++++ b/libkern/crypto/sweet_dec64be.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/dec64be.c"
+ #endif
+
+--- a/libkern/crypto/sweet_enc32be.c
++++ b/libkern/crypto/sweet_enc32be.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/enc32be.c"
+ #endif
+
+--- a/libkern/crypto/sweet_enc32le.c
++++ b/libkern/crypto/sweet_enc32le.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/enc32le.c"
+ #endif
+
+--- a/libkern/crypto/sweet_enc64be.c
++++ b/libkern/crypto/sweet_enc64be.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/codec/enc64be.c"
+ #endif
+
+--- a/libkern/crypto/sweet_md5.c
++++ b/libkern/crypto/sweet_md5.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/hash/md5.c"
+ #endif
+
+--- a/libkern/crypto/sweet_sha1.c
++++ b/libkern/crypto/sweet_sha1.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/hash/sha1.c"
+ #endif
+
+--- a/libkern/crypto/sweet_sha2big.c
++++ b/libkern/crypto/sweet_sha2big.c
+@@ -1,4 +1,4 @@
+ /* BearSSL sources are fetched at an immutable commit by 0020-stage-bearssl.sh. */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include "sweet_bearssl/src/hash/sha2big.c"
+ #endif
+
+--- a/makedefs/MakeInc.def
++++ b/makedefs/MakeInc.def
+@@ -29,7 +29,7 @@
+ else ifneq ($(findstring _host,$(RC_ProjectName)),)
+ SUPPORTED_ARM64_MACHINE_CONFIGS = NONE
+ else
+-SUPPORTED_ARM64_MACHINE_CONFIGS = BCM2837 T6000 T8101 T8103 VMAPPLE SWEET
++SUPPORTED_ARM64_MACHINE_CONFIGS = BCM2837 T6000 T8101 T8103 VMAPPLE SWEET LISA
+ 
+ endif
+ 
+@@ -62,6 +62,7 @@
+ MACHINE_FLAGS_ARM64_VMAPPLE = -DARM64_BOARD_CONFIG_VMAPPLE              -march=armv8.5a
+ MACHINE_FLAGS_ARM64_BCM2837 = -DARM64_BOARD_CONFIG_BCM2837
+ MACHINE_FLAGS_ARM64_SWEET = -DARM64_BOARD_CONFIG_SWEET                -march=armv8.2-a+crypto
++MACHINE_FLAGS_ARM64_LISA = -DARM64_BOARD_CONFIG_LISA                  -march=armv8.2-a+crypto
+ 
+ 
+ #
+@@ -260,11 +261,14 @@
+ # Without embdedded device map, use a default arch string
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := $(shell echo $(CURRENT_ARCH_CONFIG) | tr A-Z a-z)
+ ifneq ($(filter arm64,$(ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG)),)
+-# sweet's Cortex-A76/A55 have no pointer authentication: stay plain arm64
++# sweet's Cortex-A76/A55 and lisa's Cortex-A78/A55 (778G) have no useful
++# pointer authentication support in XNU here: stay plain arm64.
+ ifneq ($(CURRENT_MACHINE_CONFIG),SWEET)
++ifneq ($(CURRENT_MACHINE_CONFIG),LISA)
+ export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64e
+ endif
+ endif
++endif
+ 
+ endif
+ 
+
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1825,7 +1825,7 @@
+ #define ARM64_PHYSMAP_ALIGNMENT_PADDING (PTOV_TABLE_SIZE * ARM_TT_TWIG_SIZE)
+ #endif
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /*
+  * The reserved low-globals/kernel region is excluded from VM allocation.
+  * Use the otherwise empty 32MB block above low globals and below gVirtBase
+@@ -2179,7 +2179,7 @@
+ 
+ 	arm_set_user_tbi();
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* phystokv() must still refer to the bootstrap aperture here. */
+ 	sweet_early_map_final();
+ #endif
+@@ -2188,7 +2188,7 @@
+ 
+ 	ml_enable_monitor();
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* The final TTBR1 is live; leave the outgoing VA=PA framebuffer alias. */
+ 	sweet_early_relocate(SWEET_EARLY_FB_VA);
+ #endif
+
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -922,7 +922,7 @@
+ 
+ 		flush_dcache((vm_offset_t)&CpuDataEntries[cpu], sizeof(cpu_data_entry_t), FALSE);
+ 		flush_dcache((vm_offset_t)cpu_data_ptr, sizeof(cpu_data_t), FALSE);
+-#if defined(SWEET)
++#if defined(QCOM)
+ 		/* The reset stub loads these through physical addresses with caches off.
+ 		 * Use VA range cleans to PoC, including on coherent-I/O builds. */
+ 		extern uint8_t bootstrap_pagetables[BOOTSTRAP_TABLE_SIZE];
+@@ -963,7 +963,7 @@
+ }
+ 
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /* Bring-up observer: the self-SGI clears SIGPdisabled after IRQs unmask. */
+ boolean_t sweet_cpu_signal_is_enabled(unsigned int cpu);
+ boolean_t
+
+--- a/osfmk/arm64/machine_routines.c
++++ b/osfmk/arm64/machine_routines.c
+@@ -954,7 +954,7 @@
+ 	const boolean_t cpus_boot_arg_present = PE_parse_boot_argn("cpus", &cpu_boot_arg, sizeof(cpu_boot_arg));
+ 	const boolean_t cpumask_boot_arg_present = PE_parse_boot_argn("cpumask", &cpumask_boot_arg, sizeof(cpumask_boot_arg));
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* Opt in to SMP: cpus=N (N <= SWEET_SMP_MAX_CPUS; cores 6-7 are the A76s). */
+ 	if (!cpus_boot_arg_present || cpu_boot_arg == 0) {
+ 		cpu_boot_arg = 1;
+@@ -1087,7 +1087,7 @@
+ 		}
+ #endif
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 		/* Aff1 encodes the core on SM7150, not an Apple cluster ID. */
+ 		cpu->die_cluster_id = (int)ml_readprop(child, "die-cluster-id", 0);
+ 		cpu->cluster_core_id = (int)ml_readprop(child, "cluster-core-id", cpu->phys_id >> 8);
+@@ -2180,7 +2180,7 @@
+ 	return dec;
+ }
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /*
+  * sweet: arm_vm_init() calls this unconditionally; Apple's definition (it
+  * enters the PPL/monitor) ships only in the closed per-SoC library. There is
+
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -1856,7 +1856,7 @@
+ #endif
+ 
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/*
+ 	 * sweet: TrustZone owns GIC Group 0, so the timer and IPIs that other
+ 	 * ARM64 targets take as FIQs arrive here as Group 1 IRQs.
+
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -143,7 +143,7 @@
+ 	adrp	x19, EXT(ResetHandlerData)@page			// Get address of the reset handler data
+ 	add		x19, x19, EXT(ResetHandlerData)@pageoff
+ 	mrs		x15, MPIDR_EL1						// Load MPIDR to get CPU number
+-#if HAS_CLUSTER || defined(SWEET)
++#if HAS_CLUSTER || defined(QCOM)
+ 	and		x0, x15, #0xFFFF					// Full Aff1:Aff0 (SWEET: core in Aff1)
+ #else
+ 	and		x0, x15, #0xFF						// CPU number is in MPIDR Affinity Level 0
+@@ -279,7 +279,7 @@
+ LEXT(bootstrap_instructions)
+ 
+ #endif /* defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR) */
+-#if defined(SWEET)
++#if defined(QCOM)
+ /* PSCI CPU_ON entry (physical): x0=context_id, no stack, MMU/caches off.
+  * Keep this separate from __start (which requires x0=boot_args PA).
+  * Firmware may return at EL1 or EL2; check before accessing EL1 state.
+@@ -513,7 +513,7 @@
+ 	mov		x20, x0
+ 	mov		x21, #0
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* Stage 0: white 64x32 band, no stack or page tables needed. */
+ 	MOV64	x0, (0x9c000000 + 2368 * 4320)
+ 	mov		w1, #-1
+@@ -678,7 +678,7 @@
+ 	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
+ 	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/*
+ 	 * Splash framebuffer: one 32MB Normal-NC block in the EXISTING V=P
+ 	 * L2 table. Both framebuffer and RAM use L1 index 0; another call to
+@@ -793,7 +793,7 @@
+ 	ic		iallu
+ #endif
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* Complete local TLB/I-cache invalidation before enabling the MMU. */
+ 	dsb		sy
+ 	isb
+@@ -837,7 +837,7 @@
+ 	MSR_SCTLR_EL1_X0
+ 	isb		sy
+ 
+-#if !VMAPPLE && !defined(SWEET)
++#if !VMAPPLE && !defined(QCOM)
+ 	MOV64   x1, SCTLR_EL1_DEFAULT
+ 	cmp		x0, x1
+ 	bne		.
+
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -7,7 +7,7 @@
+  */
+ #include <arm64/sweet_early.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <stdint.h>
+ #include <kern/misc_protos.h>
+ 
+
+--- a/osfmk/arm64/sweet_early.h
++++ b/osfmk/arm64/sweet_early.h
+@@ -6,7 +6,7 @@
+ #include <stdarg.h>
+ #include <stdint.h>
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ void sweet_early_mark(unsigned int stage, const char *label);
+ void sweet_early_putc(char c);
+ void sweet_early_panic(const char *fmt, va_list *args);
+
+--- a/osfmk/console/serial_console.c
++++ b/osfmk/console/serial_console.c
+@@ -266,7 +266,7 @@
+  *             waiting for an interrupt when the hardware device isn't ready
+  * @param size The number of characters to print to the console.
+  */
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ extern void sweet_log_append(const char *c, int size);  /* bsd/dev/sweet_ufs.c */
+ /*
+  * Set by AppleCLCD (boot-arg sweetfb_noconsole=1) once the GUI presents:
+@@ -281,7 +281,7 @@
+ {
+ 	extern int disableConsoleOutput;
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 	sweet_log_append(c, size);
+ 	if (sweet_console_muted && !panic_active()) {
+ 		return;
+
+--- a/osfmk/kern/debug.c
++++ b/osfmk/kern/debug.c
+@@ -1072,7 +1072,7 @@
+ {
+ #pragma clang diagnostic pop
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* No CPU/thread/debugger state is required for this first panic copy. */
+ 	sweet_early_panic(panic_format_str, panic_args);
+ #endif
+
+--- a/osfmk/kern/exception.c
++++ b/osfmk/kern/exception.c
+@@ -820,7 +820,7 @@
+ 	return exception_triage_thread(exception, code, codeCnt, thread);
+ }
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ #include <vm/vm_shared_region.h>
+ #include <arm/thread.h>
+ 
+
+--- a/osfmk/prng/entropy.c
++++ b/osfmk/prng/entropy.c
+@@ -40,7 +40,7 @@
+ #include <machine/machine_routines.h>
+ #include <libkern/section_keywords.h>
+ #include <sys/cdefs.h>
+-#if defined(SWEET)
++#if defined(QCOM)
+ #include <corecrypto/ccdigest.h>
+ #include <corecrypto/ccsha2.h>
+ #endif
+@@ -97,7 +97,7 @@
+ 	// State for a SHA256 computation. This is used to accumulate
+ 	// entropy samples from across all CPUs. It is finalized when
+ 	// entropy is provided to the consumer of this module.
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	ccdigest_ctx_decl(CCSHA256_STATE_SIZE, CCSHA256_BLOCK_SIZE, sha256_ctx);
+ #else
+ 	SHA256_CTX sha256_ctx;
+@@ -482,7 +482,7 @@
+ static void
+ entropy_hash_init(void)
+ {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	ccdigest_init(&ccsha256_ltc_di, entropy_data.sha256_ctx);
+ #else
+ 	SHA256_Init(&entropy_data.sha256_ctx);
+@@ -492,7 +492,7 @@
+ static void
+ entropy_hash_update(const void *data, size_t nbytes)
+ {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	ccdigest_update(&ccsha256_ltc_di, entropy_data.sha256_ctx, nbytes, data);
+ #else
+ 	SHA256_Update(&entropy_data.sha256_ctx, data, nbytes);
+@@ -502,7 +502,7 @@
+ static void
+ entropy_hash_final(void *out)
+ {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	ccdigest_final(&ccsha256_ltc_di, entropy_data.sha256_ctx, out);
+ 	ccdigest_ctx_clear(CCSHA256_STATE_SIZE, CCSHA256_BLOCK_SIZE, entropy_data.sha256_ctx);
+ #else
+@@ -524,7 +524,7 @@
+ 
+ 	// Apple platforms need the corecrypto kext's SHA256 implementation.
+ 	// SWEET links the digest into the kernel instead.
+-#if !defined(SWEET)
++#if !defined(QCOM)
+ 	if (__improbable(!crypto_init)) {
+ 		return sample_count;
+ 	}
+
+--- a/osfmk/prng/prng_random.c
++++ b/osfmk/prng/prng_random.c
+@@ -145,7 +145,7 @@
+ 		     .strictFIPS = 0,
+ 	     }};
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /*
+  * The corecrypto kext normally installs the kernel PRNG. SWEET has no such
+  * kext: use the built-in HMAC-SHA256 DRBG, just as early_random does. A
+@@ -473,7 +473,7 @@
+ write_random(void * buffer, u_int numbytes)
+ {
+ 	uint8_t seed[SHA256_DIGEST_LENGTH];
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/* Hash without depending on the absent corecrypto kext's dispatch table. */
+ 	const struct ccdigest_info *di = &ccsha256_ltc_di;
+ 	ccdigest_di_decl(di, ctx);
+
+--- a/osfmk/vm/vm_kern.c
++++ b/osfmk/vm/vm_kern.c
+@@ -2439,7 +2439,7 @@
+ 	}
+ }
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /*
+  * No corecrypto kext is loaded on SWEET yet. The kmem RNG contract permits
+  * a non-cryptographic generator and requires lock-free generation. Keep
+@@ -2485,7 +2485,7 @@
+ static void
+ kmem_crypto_init(void)
+ {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	vm_size_t ctx_size = sizeof(struct sweet_kmem_rng);
+ #else
+ 	vm_size_t ctx_size = crypto_random_kmem_ctx_size();
+@@ -2496,7 +2496,7 @@
+ 
+ 		ks->ks_rng_ctx = zalloc_percpu_permanent(ctx_size, ZALIGN_PTR);
+ 		zpercpu_foreach(ctx, ks->ks_rng_ctx) {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 			((struct sweet_kmem_rng *)ctx)->state = early_random();
+ #else
+ 			crypto_random_kmem_init(ctx);
+@@ -2765,7 +2765,7 @@
+ 		 */
+ 		slot_idx = kmem_get_random16((uint16_t)num_slots - 1);
+ 	} else {
+-#if defined(SWEET)
++#if defined(QCOM)
+ 		slot_idx = sweet_kmem_uniform(zpercpu_get(sizeclass.ks_rng_ctx), num_slots);
+ #else
+ 		crypto_random_uniform(zpercpu_get(sizeclass.ks_rng_ctx), num_slots,
+
+--- a/pexpert/arm/pe_fiq.c
++++ b/pexpert/arm/pe_fiq.c
+@@ -17,9 +17,9 @@
+ #define GICR_WAKE_TIMEOUT_NS (1000000000ULL) // timeout for redistributor wakeup (default 1s)
+ MACHINE_TIMEOUT(gicr_wake_timeout_ns, "gicr-wake-timeout", GICR_WAKE_TIMEOUT_NS, MACHINE_TIMEOUT_UNIT_NSEC, NULL);
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ /* Phone default; QEMU virt wires the architected virtual timer to INTID 27. */
+-SECURITY_READ_ONLY_LATE(uint32_t) sweet_vtimer_intid = SWEET_VTIMER_INTID;
++SECURITY_READ_ONLY_LATE(uint32_t) sweet_vtimer_intid = QCOM_VTIMER_INTID;
+ #endif
+ 
+ static vm_offset_t gicd_base;
+@@ -102,7 +102,7 @@
+ 			panic("%s: incorrect reg property size in GIC DT node; expecting 32 bytes but got %u bytes", __func__, prop_size);
+ 		}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 		/* Read only on the boot CPU, before the GIC and RO-late lockdown. */
+ 		void const *timer_prop;
+ 		unsigned int timer_size;
+@@ -164,7 +164,7 @@
+ 		}
+ 	}
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	/*
+ 	 * Real hardware with two security states: Group 0 is TrustZone's and
+ 	 * non-secure writes to it are ignored. Everything we own is Group 1 NS
+@@ -175,7 +175,7 @@
+ 	for (unsigned int i = 0; i < 32; i += 4) {
+ 		gicr_write32(GICR_IPRIORITYR0 + i, 0xA0A0A0A0);
+ 	}
+-	gicr_write32(GICR_ISENABLER0, (1U << sweet_vtimer_intid) | (1U << SWEET_IPI_SGI));
++	gicr_write32(GICR_ISENABLER0, (1U << sweet_vtimer_intid) | (1U << QCOM_IPI_SGI));
+ #else
+ 	// Configure timers and legacy FIQ to be group 0
+ 	gicr_write32(GICR_IGROUPR0, 0x81FFFFFF);
+@@ -190,7 +190,7 @@
+ 	__builtin_arm_wsr64("ICC_SRE_EL1", icc_sre);
+ 	__builtin_arm_isb(ISB_SY);
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	__builtin_arm_wsr64("ICC_BPR1_EL1", 0);
+ #else
+ 	// Set priority masks and binary point for group 0
+@@ -203,7 +203,7 @@
+ 	icc_ctlr &= ~ICC_CTLR_EOIMODE;
+ 	__builtin_arm_wsr64("ICC_CTLR_EL1", icc_ctlr);
+ 
+-#if defined(SWEET)
++#if defined(QCOM)
+ 	// ABL leaves only ARE_NS set; Linux writes ARE_NS | EnableGrp1A | EnableGrp1
+ 	uint32_t gicd_ctlr = gicd_read32(GICD_CTLR);
+ 	gicd_ctlr |= GICD_CTLR_ARE_NS | GICD_CTLR_ENABLEGRP1A | GICD_CTLR_ENABLEGRP1;
+
+--- a/pexpert/pexpert/arm/protos.h
++++ b/pexpert/pexpert/arm/protos.h
+@@ -36,7 +36,7 @@
+ int uart_getc(void);
+ 
+ void pe_init_fiq(void);
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ extern uint32_t sweet_vtimer_intid;
+ #endif
+ 
+
+--- a/pexpert/pexpert/arm64/Makefile
++++ b/pexpert/pexpert/arm64/Makefile
+@@ -18,7 +18,9 @@
+ 	H13.h \
+ 	VMAPPLE.h \
+ 	BCM2837.h \
+-	SWEET.h
++	SWEET.h \
++	LISA.h \
++	QCOM.h
+ 
+ 
+ # Headers installed into System.framework/PrivateHeaders (userspace internal SDK only).
+
+--- a/pexpert/pexpert/arm64/SWEET.h
++++ b/pexpert/pexpert/arm64/SWEET.h
+@@ -2,82 +2,16 @@
+  * Board config for the Redmi Note 10 Pro ("sweet", Qualcomm SM7150 /
+  * Snapdragon 732G): Kryo 470 = Cortex-A76 + Cortex-A55, ARMv8.2, no PAC.
+  *
+- * Generic ARM like BCM2837 (no APPLE_ARM64_ARCH_FAMILY: none of Apple's
+- * implementation-defined system registers exist), 16K pages and GICv3 like
+- * VMAPPLE. Unlike VMAPPLE the GIC has two security states (GICD_TYPER
+- * SecurityExtn=1): Group 0 belongs to TrustZone, so every interrupt,
+- * including the timer, is a Group 1 IRQ taken through sleh_irq().
++ * Generic ARM no APPLE_ARM64_ARCH_FAMILY: none of Apple's implementation-
++ * defined system registers exist), 16K pages and GICv3 like VMAPPLE. Unlike
++ * VMAPPLE the GIC has two security states (GICD_TYPER SecurityExtn=1): Group
++ * 0 belongs to TrustZone, so every interrupt, including the timer, is a
++ * Group 1 IRQ taken through sleh_irq().
+  */
+ 
+ #ifndef _PEXPERT_ARM64_SWEET_H
+ #define _PEXPERT_ARM64_SWEET_H
+ 
+-#define NO_MONITOR                1
+-#define NO_ECORE                  1
++#include <pexpert/arm64/QCOM.h>
+ 
+-#define SWEET                     1
+-
+-/*
+- * All eight cores (six A55 + two A76) as one homogeneous SMP cluster:
+- * cpus=N is clamped here. Same ISA level (ARMv8.2), 64-byte lines, PSCI
+- * CPU_ON; the scheduler does not know the A76s are faster (no AMP/P-E
+- * clusters yet).
+- */
+-#define SWEET_SMP_MAX_CPUS         8
+-
+-#define ARM_ARCH_TIMER
+-#define __ARM_ARCH__              8
+-#define __ARM_VMSA__              8
+-#define __ARM_VFP__               4
+-#define __ARM_COHERENT_CACHE__    1
+-#define __ARM_DEBUG__             7
+-#define __ARM_ENABLE_SWAP__       1
+-#define __ARM_V8_CRYPTO_EXTENSIONS__ 1
+-#define __ARM_PAN_AVAILABLE__     1
+-#define __ARM_16K_PG__            1
+-
+-#define HAS_GIC_V3                1
+-
+-#ifndef ASSEMBLER
+-#define PLATFORM_PANIC_LOG_DISABLED
+-#endif /* ! ASSEMBLER */
+-
+-/*
+- * Qualcomm numbers the architected timer PPIs 1/2/3/0 (secure phys, phys,
+- * virt, hyp) instead of the usual 13/14/11/10: the virtual timer XNU uses
+- * (CNTV) is INTID 16 + 3 = 19.
+- */
+-#define SWEET_VTIMER_INTID        19
+-#define SWEET_IPI_SGI             1       // SGI used for cross-CPU signals
+-
+-#define GIC_SPURIOUS_IRQ          1023    // IRQ no. for GIC spurious interrupt
+-
+-#define GICR_PE_SIZE              0x20000 // Size of each redistributor region
+-
+-/* GICv3 register definitions; see GICv3 spec (Arm IHI 0069G) */
+-#define GICD_CTLR                 0x0
+-
+-/* Non-secure view of GICD_CTLR (DS=0) */
+-#define GICD_CTLR_ENABLEGRP1      0x1
+-#define GICD_CTLR_ENABLEGRP1A     0x2
+-#define GICD_CTLR_ARE_NS          0x10
+-#define GICD_CTLR_RWP             0x80000000
+-
+-#define GICR_TYPER                              0x08
+-#define GICR_WAKER                              0x14
+-#define GICR_IGROUPR0                           0x10080
+-#define GICR_ISENABLER0                         0x10100
+-#define GICR_IPRIORITYR0                        0x10400
+-
+-#define GICR_TYPER_AFFINITY_VALUE_SHIFT         32
+-#define GICR_TYPER_LAST                         0x10
+-
+-#define GICR_WAKER_PROCESSORSLEEP               0x2
+-#define GICR_WAKER_CHILDRENASLEEP               0x4
+-
+-#define ICC_CTLR_EOIMODE                        0x2
+-
+-#define ICC_SRE_SRE                             0x1
+-/* End of GICv3 register definitions */
+-
+ #endif /* ! _PEXPERT_ARM64_SWEET_H */
+
+--- a/pexpert/pexpert/arm64/board_config.h
++++ b/pexpert/pexpert/arm64/board_config.h
+@@ -108,6 +108,17 @@
+ 
+ #endif  /* ARM64_BOARD_CONFIG_SWEET */
+ 
++#ifdef ARM64_BOARD_CONFIG_LISA
++#include <pexpert/arm64/LISA.h>
++
++#define MAX_L2_CLINE                   6
++#define MAX_CPUS                       8
++#define MAX_CPU_CLUSTERS               1
++
++#define CORE_NCTRS                     8 /* Placeholder; KPC is not enabled for this target */
++
++#endif  /* ARM64_BOARD_CONFIG_LISA */
++
+ #ifdef ARM64_BOARD_CONFIG_VMAPPLE
+ #include <pexpert/arm64/VMAPPLE.h>
+ 
+
+--- /dev/null
++++ b/config/MASTER.arm64.lisa
+@@ -0,0 +1,115 @@
++#
++# lisa (Xiaomi Mi 11 Lite 5G NE, SM7325-Abyss / Snapdragon 778G 5G):
++# MASTER.arm64.MacOSX plus the open-source arm64 assembly and pmap
++# (nos_arm_asm, nos_arm_pmap) as on SWEET; no Apple KDK SoC libs exist.
++# kperf/kpc stay (xnu does not build without kperf); osfmk/arm64/kpc.c is a
++# stub with no hardware counters.
++#
++#
++# Mach Operating System
++# Copyright (c) 1986 Carnegie-Mellon University
++# Copyright 2001-2018 Apple Inc.
++#
++# All rights reserved.  The CMU software License Agreement
++# specifies the terms and conditions for use and redistribution.
++#  
++######################################################################
++#
++#  Master Apple configuration file (see the master machine independent
++#  configuration file for a description of the file format).
++#
++######################################################################
++#  
++#  Standard Apple OS Configurations:
++#  -------- ----- -- ---------------
++#
++#  KERNEL_BASE =    [ arm64 config_pmap_ppl medium msgb_large config_requires_u32_munging config_delay_idle_sleep config_proc_udata_storage config_uexc config_darkboot nos_arm_asm nos_arm_pmap ]
++#  KERNEL_RELEASE = [ KERNEL_BASE ]
++#  KERNEL_DEV =     [ KERNEL_BASE development mach_assert config_xnupost proc_ref_debug config_proc_resource_limits ]
++#  KERNEL_DEBUG =   [ KERNEL_BASE debug mach_assert config_xnupost config_waitq_stats config_workloop_debug config_proc_resource_limits ]
++#  BSD_BASE =       [ mach_bsd sysv_sem sysv_msg sysv_shm config_netboot config_imageboot psynch config_proc_uuid_policy config_coredump pgo config_personas ]
++#  BSD_RELEASE =    [ BSD_BASE ]
++#  BSD_DEV =        [ BSD_BASE config_vnguard ]
++#  BSD_DEBUG =      [ BSD_BASE config_vnguard ]
++#  FILESYS_BASE =   [ devfs fdesc fifo mockfs sweet_hfs fs_compression config_protect config_mnt_rootsnap config_rosv_startup config_mount_vm config_mount_prebootrecovery config_basesystemroot config_fse quota namedstreams config_imgsrc_access config_triggers config_searchfs config_volfs config_appledouble nullfs bindfs config_mnt_suid config_firmlinks config_dataless_files config_union_mounts config_file_leases ]
++#  FILESYS_RELEASE= [ FILESYS_BASE ]
++#  FILESYS_DEV =    [ FILESYS_BASE config_iocount_trace ]
++#  FILESYS_DEBUG =  [ FILESYS_BASE config_iocount_trace ]
++#  NFS =            [ nfsserver ]
++#  SKYWALK_BASE =   [ skywalk config_nexus_user_pipe config_nexus_kernel_pipe config_nexus_monitor config_nexus_flowswitch config_nexus_netif ]
++#  SKYWALK_RELEASE = [ SKYWALK_BASE ]
++#  SKYWALK_DEV =    [ SKYWALK_BASE ]
++#  SKYWALK_DEBUG =  [ SKYWALK_BASE ]
++#  NETWORKING =     [ inet bpfilter dummynet traffic_mgt sendfile ah_all_crypto bond vlan gif stf ifnet_input_chk config_mbuf_jumbo if_bridge MULTIPATH if_fake remote_vif ]
++#  NETWORKING_RELEASE = [ NETWORKING ]
++#  NETWORKING_DEV = [ NETWORKING_RELEASE packet_mangler if_headless ]
++#  NETWORKING_DEBUG = [ NETWORKING_DEV ]
++#  VPN =            [ ipsec flow_divert necp content_filter ]
++#  PF =             [ pf pflog ]
++#  MULTIPATH =      [ multipath mptcp ]
++#if SOC_CONFIG_t8020 || SOC_IS_VIRTUALIZED
++#  HIBERNATION =    [ ]
++#else /*!(SOC_CONFIG_t8020 || SOC_IS_VIRTUALIZED)*/
++#  HIBERNATION =    [ ]
++#endif /*SOC_CONFIG_t8020 || SOC_IS_VIRTUALIZED*/
++#  IOKIT_BASE =     [ iokit iokitcpp no_kernel_hid config_sleep iokitstats HIBERNATION ]
++#  IOKIT_RELEASE =  [ IOKIT_BASE ]
++#  IOKIT_DEV =      [ IOKIT_BASE iotracking ]
++#  IOKIT_DEBUG =    [ IOKIT_BASE iotracking ]
++#  LIBKERN_BASE =   [ libkerncpp config_blocks config_kec_fips crypto_sha2 config_img4 ]
++#  LIBKERN_RELEASE =[ LIBKERN_BASE zlib ]
++#  LIBKERN_DEV =    [ LIBKERN_BASE zlib iotracking ]
++#  LIBKERN_DEBUG =  [ LIBKERN_BASE zlib iotracking ]
++#  PERF_DBG_BASE =  [ config_dtrace mach_kdp config_serial_kdp kdp_interactive_debugging config_kdp_coredump_encryption config_pervasive_energy PERFMON_BASE kperf kpc ]
++#  PERF_DBG_RELEASE=[ PERF_DBG_BASE ist_kdebug ]
++#  PERF_DBG_DEV =   [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]
++#  PERF_DBG_DEBUG = [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]
++#if SOC_IS_VIRTUALIZED
++#  PARAVIRT_BASE =  [ config_pv_ticket ]
++#else
++#  PARAVIRT_BASE =  [ ]
++#endif /*SOC_IS_VIRTUALIZED*/
++#  MACH_BASE =      [ mach config_ecc_logging vc_progress_white importance_inheritance config_atm config_coalitions config_iosched config_sysdiagnose config_telemetry config_mach_bridge_recv_time config_quiesce_counter config_arm_pfz config_user_notification phys_write_acct config_service_port_info config_voucher_deprecated PARAVIRT_BASE config_ledger_interval_max ]
++#  MACH_RELEASE =   [ MACH_BASE ]
++#  MACH_DEV =       [ MACH_BASE config_io_accounting importance_trace ]
++#  MACH_DEBUG =     [ MACH_BASE config_io_accounting importance_trace importance_debug ]
++#  SCHED_BASE =     [ config_sched_traditional config_sched_multiq config_sched_deferred_ast config_clutch config_sched_sfi config_sched_auto_join config_preadopt_tg ]
++#  SCHED_RELEASE =  [ SCHED_BASE ]
++#  SCHED_DEV =      [ SCHED_BASE ]
++#  SCHED_DEBUG =    [ SCHED_BASE config_sched_grrr config_sched_proto ]
++#  VM_BASE =        [ vm_pressure_events memorystatus config_code_decryption encrypted_swap config_deferred_reclaim ]
++#  VM_RELEASE =     [ VM_BASE ]
++#  VM_DEV =         [ VM_BASE dynamic_codesigning pgzalloc ]
++#  VM_DEBUG =       [ VM_BASE dynamic_codesigning pgzalloc ]
++#  VM_KASAN =       [ VM_BASE dynamic_codesigning config_kasan config_ubsan config_kcov config_ksancov kernel_tbi ]
++#  SECURITY =       [ config_macf config_audit kernel_integrity config_csr config_csr_from_dt config_setuid config_kas_info config_secure_bsd_root config_arcade config_supplemental_signatures second_static_trust_cache reslide_shared_cache ]
++#  BASE =           [ PF VPN SECURITY NFS ]
++#  RELEASE =        [ BASE KERNEL_RELEASE BSD_RELEASE FILESYS_RELEASE SKYWALK_RELEASE NETWORKING_RELEASE IOKIT_RELEASE LIBKERN_RELEASE    PERF_DBG_RELEASE MACH_RELEASE SCHED_RELEASE VM_RELEASE ]
++#  DEVELOPMENT =    [ BASE KERNEL_DEV     BSD_DEV     FILESYS_DEV     SKYWALK_DEV     NETWORKING_DEV     IOKIT_DEV     LIBKERN_DEV        PERF_DBG_DEV     MACH_DEV     SCHED_DEV     VM_DEV     ]
++#  DEBUG =          [ BASE KERNEL_DEBUG   BSD_DEBUG   FILESYS_DEBUG   SKYWALK_DEBUG   NETWORKING_DEBUG   IOKIT_DEBUG   LIBKERN_DEBUG      PERF_DBG_DEBUG   MACH_DEBUG   SCHED_DEBUG   VM_DEBUG   ]
++#  KASAN =          [ BASE KERNEL_DEV     BSD_DEV     FILESYS_DEV     SKYWALK_DEV     NETWORKING_DEV     IOKIT_DEV     LIBKERN_DEV        PERF_DBG_DEV     MACH_DEV     SCHED_DEV     VM_KASAN   ]
++#
++######################################################################
++#
++machine		"arm64"						# <arm64>
++
++makeoptions	OSFMK_MACHINE = "arm64"				# <mach>
++
++options		COUNT_SYSCALLS		# count bsd system calls 	# <countcalls>
++options     TRASH_VFP_ON_SAVE   # <debug,trash_vfp>
++options		ALTERNATE_DEBUGGER	# <alternate_debugger>
++
++options   CONFIG_VNODES=1024		# <xsmall>
++
++options   CONFIG_FREEZE_SUSPENDED_MIN=4		# <xsmall>
++
++options	  CONFIG_MACH_APPROXIMATE_TIME
++
++options   CONFIG_KERNEL_INTEGRITY		# <kernel_integrity>
++
++options CONFIG_MACF_LAZY_VNODE_LABELS   # Turn on labels, don't preallocate
++
++options CONFIG_HYPERVISOR_PUBLIC   # unrestricted entitlement for hypervisor
++
++options   CONFIG_RESLIDE_SHARED_CACHE		# <reslide_shared_cache>
++options   CONFIG_KERNEL_TBI		# <kernel_tbi>
+
+--- /dev/null
++++ b/pexpert/pexpert/arm64/LISA.h
+@@ -0,0 +1,17 @@
++/*
++ * Board config for the Xiaomi Mi 11 Lite 5G NE ("lisa", Qualcomm SM7325-Abyss /
++ * Snapdragon 778G): Kryo 670 = 4x Cortex-A55 + 4x Cortex-A78, ARMv8.2+
++ * (A78 is v8.4 but the shared code path stays at v8.2), no PAC use.
++ *
++ * Same shape as SWEET: generic ARM (no APPLE_ARM64_ARCH_FAMILY: none of
++ * Apple's implementation-defined system registers exist), 16K pages, GICv3
++ * with two security states; Group 0 belongs to TrustZone, so every interrupt,
++ * including the timer, is a Group 1 IRQ taken through sleh_irq().
++ */
++
++#ifndef _PEXPERT_ARM64_LISA_H
++#define _PEXPERT_ARM64_LISA_H
++
++#include <pexpert/arm64/QCOM.h>
++
++#endif /* ! _PEXPERT_ARM64_LISA_H */
+
+--- /dev/null
++++ b/pexpert/pexpert/arm64/QCOM.h
+@@ -0,0 +1,83 @@
++/*
++ * Common board config for Qualcomm SoCs running XNU (sweet = SM7150,
++ * lisa = SM7325). Generic to the family: generic ARM like BCM2837 (no
++ * APPLE_ARM64_ARCH_FAMILY: none of Apple's implementation-defined system
++ * registers exist), 16K pages and GICv3 like VMAPPLE. Unlike VMAPPLE the
++ * GIC has two security states (GICD_TYPER SecurityExtn=1): Group 0 belongs
++ * to TrustZone, so every interrupt, including the timer, is a Group 1 IRQ
++ * taken through sleh_irq().
++ */
++
++#ifndef _PEXPERT_ARM64_QCOM_H
++#define _PEXPERT_ARM64_QCOM_H
++
++#define NO_MONITOR                1
++#define NO_ECORE                  1
++
++/* QCOM-generic code paths key on this (was SWEET in the single-device era). */
++#define QCOM                      1
++
++/*
++ * All eight cores (SM7150: 6x A55 + 2x A76, SM7325: 4x A55 + 4x A78) as one
++ * homogeneous SMP cluster: cpus=N is clamped here. Same 64-byte lines, PSCI
++ * CPU_ON; the scheduler does not know some cores are faster (no AMP/P-E
++ * clusters yet).
++ */
++#define SWEET_SMP_MAX_CPUS         8
++
++#define ARM_ARCH_TIMER
++#define __ARM_ARCH__              8
++#define __ARM_VMSA__              8
++#define __ARM_VFP__               4
++#define __ARM_COHERENT_CACHE__    1
++#define __ARM_DEBUG__             7
++#define __ARM_ENABLE_SWAP__       1
++#define __ARM_V8_CRYPTO_EXTENSIONS__ 1
++#define __ARM_PAN_AVAILABLE__     1
++#define __ARM_16K_PG__            1
++
++#define HAS_GIC_V3                1
++
++#ifndef ASSEMBLER
++#define PLATFORM_PANIC_LOG_DISABLED
++#endif /* ! ASSEMBLER */
++
++/*
++ * Qualcomm numbers the architected timer PPIs 1/2/3/0 (secure phys, phys,
++ * virt, hyp) instead of the usual 13/14/11/10: the virtual timer XNU uses
++ * (CNTV) is INTID 16 + 3 = 19.
++ */
++#define QCOM_VTIMER_INTID         19
++#define QCOM_IPI_SGI              1       // SGI used for cross-CPU signals
++
++#define GIC_SPURIOUS_IRQ          1023    // IRQ no. for GIC spurious interrupt
++
++#define GICR_PE_SIZE              0x20000 // Size of each redistributor region
++
++/* GICv3 register definitions; see GICv3 spec (Arm IHI 0069G) */
++#define GICD_CTLR                 0x0
++
++/* Non-secure view of GICD_CTLR (DS=0) */
++#define GICD_CTLR_ENABLEGRP1      0x1
++#define GICD_CTLR_ENABLEGRP1A     0x2
++#define GICD_CTLR_ARE_NS          0x10
++#define GICD_CTLR_RWP             0x80000000
++
++#define GICR_TYPER                              0x08
++#define GICR_WAKER                              0x14
++#define GICR_IGROUPR0                           0x10080
++#define GICR_ISENABLER0                         0x10100
++#define GICR_IPRIORITYR0                        0x10400
++
++#define GICR_TYPER_AFFINITY_VALUE_SHIFT         32
++#define GICR_TYPER_LAST                         0x10
++
++#define GICR_WAKER_PROCESSORSLEEP               0x2
++#define GICR_WAKER_CHILDRENASLEEP               0x4
++
++#define ICC_CTLR_EOIMODE                        0x2
++
++#define ICC_SRE_SRE                             0x1
++/* End of GICv3 register definitions */
++
++#endif /* ! _PEXPERT_ARM64_QCOM_H */
