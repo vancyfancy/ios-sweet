@@ -864,6 +864,55 @@ What it took today (in order): 0058 HID services (Apple IOHIDFamily-1915 user cl
 - Debug: xnu patch 0003 sweet-fbcon = kprintf drawn on the framebuffer (ADT node "sweet-fbcon").
 - ADT /arm-io ranges must not map to parent 0 (pe_arm_get_soc_base_phys()==0 disables serial): use parent 0x1000000.
 
+## ACTIVE HANDOFF 2026-10-22: iOS 16.5 HOME SCREEN LIVE ON LISA (supersedes session-4 continuation above)
+This is the current state; the sections above are historical (sweet-fork route = parked, not deleted).
+
+Milestone: Apple iOS 16.5 20F66 userspace (their HackiOS xnu-8796.121.2 kernel + Apple SpringBoard) ran on the
+user's lisa, RAM-only: home screen drawn on the panel, SpringBoard = pid 7, launchd alive, clock ticking (epoch
+baked at payload time; reads UTC = no tzdb/NTP = "a few minutes behind" = cosmetic). User confirmed visually.
+Touch = DEAD (expected; see below). The run was still "running 0 0" at +5 min; loader_return_after=900 allows
+cleanup reboot back to Android; nothing flashed at any point.
+
+Proven chain (exact repro):
+  adb reboot bootloader
+  fastboot boot _lisa/boot-images/hackios-lisa-enter.img        (CI artifact, sha 6becd9b0…; loader = xnuloader)
+  fastboot oem ramdisk && fastboot stage userland/system.apfs   (2,492,207,104 B; landed in RAM, 79 s at ~31 MB/s)
+  python3 xnuloader/mkpayload.py -o /.../payload-sb-run1.bin \
+    kernel=prebuilt/mach.development.bcm2837 ramdisk=userland/root.apfs \
+    --cmdline "loader_return_after=900 epoch=$(date +%s) sb_delay=8 -v cpus=8 bootcpu=7 cpufreq=1"
+  fastboot stage payload-sb-run1.bin && fastboot oem run payload-sb-run1.bin
+  (payload 19,817,560 B sha256 b71b272c418c38c20f6e6010a00ff7da4377327a75d6223e20963635f263796f)
+Screenshot pipeline verified: getvar screen → "1080 2400 4320"; oem screenshot → get_staged raw → python BGRX→PNG
+(the snippet inside their xl, zsh gotcha: pass geom as 3 SEPARATE args, not one string). Result: _lisa/logs/sb1.png.
+Console log: _lisa/logs/sb1.log (203+ lines; launchd, backboardd, digitizer attached, UISensor modes).
+
+Touch = dead root cause (from sb1.log): their stack exposes a STAND-IN digitizer ("redwood: input: touch screen
+service" / /dev/redwood-touch, transport:SPI synthetic) which backboardd attaches fine; NO driver reads the real
+panel. lisa panel = Goodix GT9897T: irq-gpio <0x3c 0x51 0x2800>, reset-gpio <0x3c 0x69>, 1080x2400, fw/cfg bins
+(goodix_gt9897t_fw_k9d*.bin + csot variant) live in Android /vendor/firmware (unreadable from shell = firmware
+route decision pending with user: A temp-root pull vs B public ROM extract). Their starting point:
+xnu/files/bsd/dev/redwood_goodix.c (redwood GT911-class) → port to GT9897T + lisa wiring.
+
+mac lane (M5) now BUILDS the full iOS payload after 5 port patches (keep, portable both ways):
+  1. fetch.sh needs 7z ≥23: brew p7zip 17.05 in PATH cannot read APFS dmg; shim dir with 7z→7zz (26.01) first in PATH.
+  2. fetch.sh two `wc -l` comparisons broke under set -e (BSD wc pads with spaces): sanitized with `tr -d ' '`.
+  3. userland/build.sh: unconditional cp of obj/drawable_test (absent from prebuilt/userland) → guarded loop.
+  4. userland/build.sh: `[ -f obj/var_store ] && cp` kills script under set -e when absent → `|| true` form.
+  5. build.sh: timedatectl failing assignment died even with 2>/dev/null (no || true); GNU `sed -i -e` and
+     `stat -c` = rewritten portable (sed via temp file + mv; stat -c %s = wc -c | tr -d ' ').
+fetch.sh totals on disk: 2.9 G rootfs, 26 M cryptex, 13 M app cryptex, 2.5 G dyld shared cache (20F66 iPhone10,3).
+userland outputs: root.apfs = 4,194,304 B + system.apfs = 2,492,207,104 B. REST=1 was the flag used.
+
+Next moves (order):
+  1. User picks firmware route (A temp Magisk-rooted boot image / B public lisa ROM offline extract) → pull
+     /vendor/firmware (Goodix bins first, then GPU/WiFi/haptics).
+  2. Port redwood_goodix.c → GT9897T + lisa dts wiring; test with rwtouch; expect the same dts phandles as above.
+  3. GPU round: GL=1 userland build + Mesa from ../tools/mesa once GPU firmware exists.
+  4. Optional: userland build on CI (ubuntu) = canonical lane; mac patches keep the local lane usable.
+  5. Pending promise: add actions/cache to .github/workflows/hackios-lisa-uefi.yml (UEFI rebuild skip).
+Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts stay out of git; NOT pushed).
+
+
 ## Status 2026-10-14 late: first XNU boot attempt
 - SWEET kernel builds (CI run 38635343732, patches 0001-0009). Verified offline: arm64, no PAC, no >v8.2 code,
   70300 classic relocs all in range (slide 0 = no loader work), entry = __start.
