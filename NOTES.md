@@ -14,6 +14,38 @@ lives in `_lisa/` on this Mac (gitignored); facts in `docs/lisa-port.md`.
 machine_config=LISA`). `CI concurrency: one run per ref; dispatch LISA and
 SWEET runs separately or they cancel each other.
 
+**Shim FDT self-config shipped (2026-10-22 later, commit `4ea80de`, pushed):**
+- `shim/fdt.c`: `fdt_node_regs()` decodes reg[]≥16 B props of nodes matching a
+  name prefix at a depth; `fdt_memory_banks()` (~multiple /memory nodes) +
+  `fdt_splash_region()` (~splash/cont_splash under reserved-memory).
+- `shim/loader.c`: in-place ADT patcher (tools/adt.py layout; only fixed-size
+  u64 rewrites so all offsets stay valid) + reconcile rule in `loader_boot()`:
+  keep the payload's baked phys/mem whenever it fits inside a reported bank
+  (sweet regression-safe — idempotent), else relocate to the largest bank
+  below the SM7325 CLADE carve-out (0xe0000000) and recompute /pram +
+  dram-base/-size like mkadt does (baked mem_size already excludes the
+  recomputed /pram + dram-base/-size like mkadt does (baked mem_size already
+  excludes the PANIC_LOG carve — the raw bank size is shrunk once). The
+  framebuffer ADT reg + boot_args Video track the live splash. `loader_probe(dtb)` runs before the
+  first console pixel and switches `con_fb`.
+- Host test `shim/fdt_host_test.c` (29 checks, ALL PASS): synthetic FDT+ADT,
+  loader_probe wiring, reconcile rules, ADT walker+patcher. Caught a real bug
+  pre-ship: the reg-loop mutated `val` so the next-token advance overshot
+  (walk broke after the first multi-entry reg — exactly the live-boot case).
+  `shim/fdt_file_test.c` parses real files: stock merged lisa DTB →
+  **splash 0xe1000000/0x2300000 (matches the dossier exactly)**; its
+  bootloader-side `/memory reg` is an all-zero placeholder (n=1, 0/0) — fits
+  rule then keeps the baked map, which is the correct first-boot behavior.
+- **Ready-to-boot lisa image assembled**: `_lisa/boot-images/shim-lisa-boot.img`
+  (sha256 `f287d181342bd1223c0a7445cee9850fe3493fcb70befc18b958554b05e4b789`,
+  header v2) = shim (self-config) + ramdisk payload (kernel.development.lisa
+  from CI 39719773276, kernel sha256 `f8fe8b45305d43c5c35d1ed800f0361df7bb1d76cdebf5103934b8eb38cf738b`,
+  cached `_lisa/ci-kernel/`; payload `33865392...`; ADT `ca29e41d...`) + lisa
+  merged DTB. On phone found: `fastboot boot _lisa/boot-images/shim-lisa-boot.img`
+  (boot only). Watch: mkadt prints "d22ap.adt missing, no /product node" on
+  this Mac (that reference ADT lives in research/ipsw-x on the Linux setup?)
+  — /product only feeds later Gestalt paths, not the first boot.
+
 **Toolchain enabled on this Mac:** vendored `tools/mkbootimg.py` (AOSP,
 v2 verified); `shim/build.sh` now cross-compiles on macOS with brew
 `aarch64-elf-gcc` 16.2.0 (`CC`/`DTB` env overrides; `tools/payload-peek.py`
