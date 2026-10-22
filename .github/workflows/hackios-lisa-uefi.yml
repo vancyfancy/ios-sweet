@@ -16,11 +16,13 @@ on:
 
 env:
   MU_SHA: e51cd877e31c8fbb322032dc4cb6715e83d25ad3
-  # lisa memory map (upstream lisa.toml + MemoryMapLib.c):
-  FD_BASE: 0x9FD00000
-  FD_SIZE: 0x200000
+  # lisa memory map (upstream lisa.toml + MemoryMapLib.c) — QUOTED: unquoted hex
+  # gets converted to a signed int32 by the workflow harness (0x9FD00000 -> -1613758464)
+  # which then breaks the BootShim assembler.
+  FD_BASE: "0x9FD00000"
+  FD_SIZE: "0x200000"
   # XNUP payload window (HackiOS value; experiment: adjust if the phone drops USB)
-  PAYLOAD_BASE: 0xF0000000
+  PAYLOAD_BASE: "0xF0000000"
 
 jobs:
   build:
