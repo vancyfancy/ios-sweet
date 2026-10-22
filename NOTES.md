@@ -147,9 +147,44 @@ philosophy).
   `sm7325-xiaomi-lisa.dtb` (commented) — hints a lisa Pkg once exists there.
 - `getvar all` dump (stock ABL, for the record): unlocked:yes, anti:1,
   variant: SM_ UFS, parallel-download-flash:yes, hw-revision 10000.
-- Phone state at end: in stock fastboot (user can boot to Android to
-  charge; nothing further needs the phone today). Push of NOTES still 403
-  on https github (commits local: 9806663 + this one).
+- **PUSH FIXED**: origin re-pointed to the user's fork `vancyfancy/ios-sweet`
+  (it was left at upstream dipa-studio → 403). Pushed through `d8f2fa4`.
+- **MAJOR ROUTE CHANGE — upstream Mu-Silicium HAS `lisaPkg`** (Platforms/
+  Xiaomi/lisaPkg: DeviceBuild.py, lisa.dec/.dsc/.fdf, Library/; NO Binaries
+  dir = source-driver build). No UEFIReader / MIUI-ROM-xbl extraction needed.
+  Upstream CI = ubuntu-24.04 + `setup_env.sh -p apt && build_active_devices.sh`
+  (only workflow = active_devices.yml). Also upstream `sweet_k6aPkg` exists.
+- HackiOS recipe to bootstrap on it (= their uefi/apply.sh, generic):
+  clone Mu-Silicium @ BASE `e51cd877e31c8fbb322032dc4cb6715e83d25ad3`
+  (+ submodules) → apply `uefi/mu-silicium.patch` (3 files: BootShim.S =
+  copies XNUP container to PAYLOAD_BASE; BootManager.c + BootManagerLib.inf =
+  start their resident loader from the container instead of the menu) →
+  `cp -r uefi/files/. Mu-Silicium/` → build device target (lisa).
+- **mkxnuimg.py mechanics** (their packer, env-driven — device-agnostic):
+  UEFI_TARGET (default redwood) picks `Mu-Silicium/Build/<t>Pkg/<mode>_
+  CLANGPDB/FV/SILICIUM_UEFI.fd` + `Resources/DTBs/<t>.dtb`; FD_BASE/FD_SIZE/
+  PAYLOAD_BASE via env (defaults = redwood's 0x9FD00000/0x200000/0xF0000000);
+  IF `Mu-Silicium/BootShim` exists it COMPILES the shim per those addresses
+  (make, aarch64-linux-gnu) — the prebuilt BootShim.bin = redwood-pinned,
+  so for lisa we MUST build from the tree. boot.img = mkbootimg v1 header,
+  kernel = gzip(shim+FD[+XNUP payload]) + DTB appended raw after the gzip.
+  Payload = `-p` = mkpayload.py XNUP container (loader.efi=… --usb for the
+  loader-only enter payload; kernel=…ramdisk=… --cmdline for a run payload).
+  Asserts `len(fd)==FD_SIZE`.
+- **Suspected reason the redwood prebuilt died on lisa** (guess, unproven):
+  redwood-pinned shim addresses + gzip+dtb-tail kernel handling by lisa's ABL.
+  Our OWN working lisa boot images use a different payload layout (our
+  ios-sweet mkbootimg scheme) — if their gzip+dtb scheme fails on lisa ABL,
+  adapt the packing to our proven scheme (probe with their shim first).
+- **CI workflow drafted** (`.github/workflows/hackios-lisa-uefi.yml`,
+  workflow_dispatch): fetch hackios @ v0.1.0 + apply.sh + setup_env.sh +
+  build lisa RELEASE + mkxnuimg with auto-derived FD_SIZE, pass-through
+  FD_BASE/PAYLOAD_BASE (fill after the local clone lands) + upload FD/img.
+  Not committed yet — pending FD_BASE/payload-shape verification from the
+  cloned tree. Clone of Mu-Silicium @ BASE running in background.
+- Phone: recommended to user = leave it on Android/charge; no fastboot
+  needed until the CI artifact exists (then ONE `fastboot boot` test).
+
 
 
 ### >>> UPDATE 2026-10-22 NIGHT (agent session 3): pram panic-capture shim; phone went silent after boot8 <<<

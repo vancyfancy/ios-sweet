@@ -1,0 +1,67 @@
+# Builds the HackiOS UEFI chain for Xiaomi Mi 11 Lite 5G NE (lisa):
+#   Mu-Silicium (Project-Silicium) @ hackios's pinned BASE commit
+#   + hackios's uefi/mu-silicium.patch (BootShim copies their XNUP payload container;
+#     BootManager auto-starts their resident XNU loader instead of the boot menu)
+#   + hackios SIBLING tree for mkxnuimg.py (assembles BootShim+FD+payload into a boot.img)
+# NOTE: nothing here goes into the phone's storage; the artifact is for `fastboot boot`.
+# Pinned commits:
+#   Mu-Silicium BASE  : e51cd877 (hackios uefi/BASE)
+#   hackios reference : v0.1.0 (source drop; prebuilt/loader.efi used as the resident loader)
+name: hackios-lisa-uefi
+
+on:
+  workflow_dispatch: {}
+
+env:
+  MU_SHA: e51cd877e31c8fbb322032dc4cb6715e83d25ad3
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch HackiOS (reference at v0.1.0 tag/commit)
+        run: git clone --depth 1 --branch v0.1.0 https://github.com/oosexgang/hackios-xnu-kernel.git hackios
+
+      # uefi/apply.sh clones ../Mu-Silicium at BASE, initializes submodules, applies
+      # mu-silicium.patch and copies uefi/files/ into the tree. Keep both trees siblings.
+      - name: prepare Mu-Silicium at BASE + hackios patch
+        run: bash uefi/apply.sh
+
+      - name: install build env
+        run: |
+          cd Mu-Silicium
+          bash setup_env.sh -p apt
+
+      - name: build lisa UEFI (RELEASE)
+        run: |
+          cd Mu-Silicium
+          python3 build_uefi.py setup -t lisa -r RELEASE
+          python3 build_uefi.py build -t lisa -r RELEASE
+
+      # The shim must copy the FD to exactly the same base the FD was built for.
+      - name: discover FD_BASE / PAYLOAD_BASE
+        run: |
+          FD=$(find Mu-Silicium/Build -name SILICIUM_UEFI.fd | head -1)
+          echo "FD=$FD  size=$(stat -c %s "$FD")"
+          grep -RnsE "FD_BASE|FD_SIZE|PAYLOAD_BASE" Mu-Silicium/Platforms/Xiaomi/lisaPkg --include="*.py" --include="*.c" --include="*.dsc" | head
+          FD_SIZE=$(stat -c %s "$FD")
+          # fill in from the grep above once verified; abort rather than boot with wrong addresses:
+          echo "FD_SIZE=$FD_SIZE" >> "$GITHUB_ENV"
+
+      - name: bake loader USB payload + boot image
+        run: |
+          cd hackios
+          python3 xnuloader/mkpayload.py -o payload.bin loader.efi=prebuilt/loader.efi --usb
+          UEFI_TARGET=lisa UD=$(cd .. && pwd) \
+          UEFI_FD="$(find ../Mu-Silicium/Build -name SILICIUM_UEFI.fd | head -1)" \
+          DTB="PLACEHOLDER-LISA-DTB" \
+          FD_BASE="PLACEHOLDER" FD_SIZE="$FD_SIZE" PAYLOAD_BASE="PLACEHOLDER" \
+          python3 mkxnuimg.py -p payload.bin -o hackios-lisa-enter.img
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackios-lisa-uefi
+          path: |
+            hackios/hackios-lisa-enter.img
+            Mu-Silicium/Build/**/SILICIUM_UEFI.fd
