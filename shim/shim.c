@@ -53,7 +53,9 @@
 
 static inline uint32_t rd32(uintptr_t a) { return *(volatile uint32_t *)a; }
 static inline uint64_t rd64(uintptr_t a) { return *(volatile uint64_t *)a; }
+static inline uint8_t rd8(uintptr_t a) { return *(volatile uint8_t *)a; }
 static inline void wr32(uintptr_t a, uint32_t v) { *(volatile uint32_t *)a = v; }
+static inline void wr64(uintptr_t a, uint64_t v) { *(volatile uint64_t *)a = v; }
 static inline void wr8(uintptr_t a, uint8_t v) { *(volatile uint8_t *)a = v; }
 
 extern char secondary_entry[];
@@ -347,6 +349,75 @@ static void test_gic(void)
 	isb();
 }
 
+/* ---- pram panic-log reader ----
+ * xnu buffers every printf directly into /pram (our ADT points it at the
+ * relocated bank's last MiB, 0x7FF00000) and on panic stamps an
+ * embedded_panic_header there ("KNUF", osfmk/kern/debug.h): magic, then
+ * eph_panic_log_offset/len locating the captured log text. If RAM survives
+ * the ABL restart, the shim re-prints the previous kernel run's tail on
+ * every boot: the panic becomes a boot-cycle observable with no kernel-
+ * side changes. The 8-byte counter at the tail drives an alternating
+ * hold/run boot cycle from the agent side alone.
+ * Keep PRAM_PA in sync with loader.c PHYSFIX (phys + adt_mem). */
+#define PRAM_PA		0x7FF00000UL
+#define PRAM_CANARY	(PRAM_PA + 0xFF000UL)
+#define PRAM_SIZE	0x100000UL
+#define EPH_MAGIC	0x46554E4BUL		/* "KNUF" */
+#define EPH_LOG		0x10UL			/* eph_panic_log_offset */
+#define EPH_LEN		0x14UL			/* eph_panic_log_len */
+#define CNT_MAGIC	0x424F4F54UL		/* "BOOT" */
+#define KLOG_LINES	22
+#define KLOG_COLS	40
+
+static uint32_t g_klog_off, g_klog_len;
+static uint32_t g_bootcnt, g_hold;		/* hold: boot after a kernel run */
+
+static void pram_scan(void)
+{
+	uint64_t c = rd64(PRAM_CANARY);
+	if ((c >> 32) == CNT_MAGIC) {
+		g_bootcnt = (uint32_t)c + 1;
+		g_hold = g_bootcnt & 1;
+		wr64(PRAM_CANARY, ((uint64_t)CNT_MAGIC << 32) | g_bootcnt);
+	} else {
+		/* first run with this image (or the slot was clobbered) */
+		wr64(PRAM_CANARY, ((uint64_t)CNT_MAGIC << 32) | 1);
+		g_bootcnt = 1;
+		g_hold = 1;
+	}
+	if (rd32(PRAM_PA) != EPH_MAGIC) {
+		g_klog_len = 0;
+		return;
+	}
+	uint32_t off = rd32(PRAM_PA + EPH_LOG);
+	uint32_t len = rd32(PRAM_PA + EPH_LEN);
+	/* sane clamps: the capture lives inside the 1 MiB pram */
+	if (off >= PRAM_SIZE || !len || len > PRAM_SIZE - off) {
+		g_klog_len = 0;
+		return;
+	}
+	g_klog_off = off;
+	g_klog_len = len;
+}
+
+static void pram_print_tail(void)
+{
+	uint32_t tail = KLOG_LINES * KLOG_COLS;
+	if (g_klog_len < tail)
+		tail = g_klog_len;
+	uintptr_t p = PRAM_PA + g_klog_off + (g_klog_len - tail);
+	for (uint32_t w = 0; w < tail; w += KLOG_COLS) {
+		char buf[KLOG_COLS + 1];
+		uint32_t n = 0;
+		for (uint32_t i = 0; i < KLOG_COLS && w + i < tail; i++) {
+			uint8_t ch = rd8(p + w + i);
+			buf[n++] = (ch >= 0x20 && ch < 0x7f) ? (char)ch : '.';
+		}
+		buf[n] = 0;
+		con_line(buf);
+	}
+}
+
 /* ---- main ---- */
 
 static void __attribute__((unused)) psci_line(const char *label, uint64_t fn)
@@ -390,6 +461,20 @@ void shim_main(uint64_t dtb)
 	stage = "loader";
 	con_clear(RED);
 	con_str("SHIM", "sweet milestone 4: xnu loader");
+
+	/* What the previous kernel run left in /pram is the top-of-screen
+	 * evidence: odd boot count = the boot right after a kernel run, so
+	 * print its panic tail, hold the screen for a later read, reset. */
+	stage = "pram";
+	pram_scan();
+	con_hex2("PRAM", "bootcnt=", g_bootcnt, "hold=", g_hold);
+	con_hex2("KLOG", "off=", g_klog_off, "len=", g_klog_len);
+	if (g_hold) {
+		pram_print_tail();
+		con_hex2("KLOG", "tail boot=", g_bootcnt, "hold=", 90);
+		delay_ms(90000);
+		reset(9);
+	}
 	con_skip();
 	const char *why = loader_boot(dtb);
 	con_str("LOADER", why);

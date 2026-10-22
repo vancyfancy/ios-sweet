@@ -26,6 +26,9 @@ void con_hex2(const char *label, const char *a, uint32_t va, const char *b, uint
 #include "fdt.c"
 #include "loader.c"
 
+void delay_ms(unsigned ms) { (void)ms; }
+void reset(unsigned after_s) { (void)after_s; }
+
 static int fails;
 #define CHECK(cond, name)					\
 	do {							\
