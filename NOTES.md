@@ -912,6 +912,17 @@ Next moves (order):
   5. Pending promise: add actions/cache to .github/workflows/hackios-lisa-uefi.yml (UEFI rebuild skip).
 Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts stay out of git; NOT pushed).
 
+### 2026-10-22 continuation: UEFI CI cache
+- Added `actions/cache@v4` to `.github/workflows/hackios-lisa-uefi.yml` for
+  Mu-Silicium's `Build/` output and generated BootShim ELF/bin. Cache key is
+  scoped to runner OS, pinned Mu-Silicium BASE SHA, and hashes of lisa.toml,
+  MuPatches, and the HackiOS UEFI patch. First run populates the cache; later
+  identical builds can reuse it. This is a workflow edit only; no CI run was
+  started in this continuation.
+- Next device-dependent step remains the user's firmware source choice (A:
+  temporary rooted boot image, B: offline public ROM extraction) before pulling
+  lisa Goodix firmware. No device or storage operations were performed here.
+
 
 ## Status 2026-10-14 late: first XNU boot attempt
 - SWEET kernel builds (CI run 38635343732, patches 0001-0009). Verified offline: arm64, no PAC, no >v8.2 code,

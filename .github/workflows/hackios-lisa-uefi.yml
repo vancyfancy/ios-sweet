@@ -36,6 +36,15 @@ jobs:
           cd hackios/uefi
           bash apply.sh
 
+      - name: Restore Mu-Silicium build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            hackios/Mu-Silicium/Build
+            hackios/Mu-Silicium/BootShim/BootShim.elf
+            hackios/Mu-Silicium/BootShim/BootShim.bin
+          key: lisa-uefi-${{ runner.os }}-${{ env.MU_SHA }}-${{ hashFiles('hackios/Mu-Silicium/Resources/Configs/lisa.toml', 'hackios/Mu-Silicium/Resources/MuPatches/**', 'hackios/uefi/mu-silicium.patch') }}
+
       - name: Build lisa UEFI (RELEASE)
         run: |
           cd hackios/Mu-Silicium
