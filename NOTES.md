@@ -904,9 +904,9 @@ fetch.sh totals on disk: 2.9 G rootfs, 26 M cryptex, 13 M app cryptex, 2.5 G dyl
 userland outputs: root.apfs = 4,194,304 B + system.apfs = 2,492,207,104 B. REST=1 was the flag used.
 
 Next moves (order):
-  1. User picks firmware route (A temp Magisk-rooted boot image / B public lisa ROM offline extract) → pull
-     /vendor/firmware (Goodix bins first, then GPU/WiFi/haptics).
-  2. Port redwood_goodix.c → GT9897T + lisa dts wiring; test with rwtouch; expect the same dts phandles as above.
+  1. (Superseded 2026-10-22) Firmware choice was resolved by the user: blobs are
+     already in ignored `_lisa/fw-take/`; no extraction route remains pending.
+  2. Port redwood_goodix.c → GT9897T + lisa DTS wiring; test with rwtouch.
   3. GPU round: GL=1 userland build + Mesa from ../tools/mesa once GPU firmware exists.
   4. Optional: userland build on CI (ubuntu) = canonical lane; mac patches keep the local lane usable.
   5. Pending promise: add actions/cache to .github/workflows/hackios-lisa-uefi.yml (UEFI rebuild skip).
@@ -919,9 +919,38 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   MuPatches, and the HackiOS UEFI patch. First run populates the cache; later
   identical builds can reuse it. This is a workflow edit only; no CI run was
   started in this continuation.
-- Next device-dependent step remains the user's firmware source choice (A:
-  temporary rooted boot image, B: offline public ROM extraction) before pulling
-  lisa Goodix firmware. No device or storage operations were performed here.
+- This driver task is device-dependent only at the later RAM-only boot/touch
+  validation step; the required lisa Goodix blobs are already on disk.
+
+### 2026-10-22 continuation: lisa Goodix driver port (in progress)
+- Read the complete HackiOS `redwood_goodix.c` and lisa DTB/DTS. Confirmed the
+  touch node is on QUP serial engine 13 at `0xa94000`, GPIO52-55 use the
+  `qup15` mux (function 1), IRQ is GPIO81 (active low), reset GPIO105, panel
+  1080x2400, and SPI max is 6 MHz. Existing driver already points at that
+  engine and those pins, but selects Goodix/FocalTech via Redwood GPIO68/96
+  straps and drives GPIO107 as AVDD.
+- Lisa DTS routes `iovdd-supply` to PM8350C LDO2 (`ldoc2`) and `avdd-supply`
+  to PM8350C LDO7 (`ldoc7`); gpio107 is not the touch rail. The local firmware
+  take includes both GT9897T FW/config variants. **Observed code fact:** the
+  HackiOS Goodix path reads the chip's active firmware/version and report
+  registers; it does not request or upload these `.bin` files. Do not claim
+  the binaries are loaded until an update path is implemented and confirmed.
+- Added `hackios/patches/lisa-goodix.patch`: adds `touch_lisa=1` board handling,
+  Goodix-only selection without touching Redwood strap pins, RPMh LDO2+LDO7
+  enables (1.8 V/3.0 V), and a 6 MHz lisa default. Redwood behavior remains
+  selected when the boot arg is absent. Updated ignored local
+  `_lisa/reference/hackios-xnu-kernel/common/devices/lisa.conf` BOOTARGS to
+  include `touch_lisa=1` for the later phone run.
+- Added `.github/workflows/hackios-lisa-kernel.yml`, which applies the tracked
+  patch to HackiOS v0.1.0, installs Theos/iPhoneOS 16.5 SDK, builds XNU, and
+  uploads `mach.development.lisa`. Patch application was checked against the
+  clean pinned source; `git diff --check` passed. CI has not run yet; kernel
+  compile and hardware touch report remain unverified. No phone operation was
+  performed.
+- Next: commit/push these changes on a review branch, dispatch the new kernel
+  workflow, inspect its log/artifact, then stage that kernel through the
+  resident loader with `touchscreen=1 touch_lisa=1`. After boot, check the log
+  for Goodix version/IC info and report counts before asking for tap validation.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt

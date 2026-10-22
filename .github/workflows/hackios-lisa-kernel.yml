@@ -1,0 +1,63 @@
+name: hackios-lisa-kernel
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "hackios/patches/**"
+      - ".github/workflows/hackios-lisa-kernel.yml"
+
+concurrency:
+  group: hackios-lisa-kernel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install HackiOS source and lisa Goodix patch
+        run: |
+          git clone --depth 1 --branch v0.1.0 https://github.com/oosexgang/hackios-xnu-kernel.git hackios
+          git -C hackios apply "$GITHUB_WORKSPACE/hackios/patches/lisa-goodix.patch"
+
+      - name: Install Theos toolchain and iOS 16.5 SDK
+        env:
+          THEOS: ${{ runner.temp }}/theos
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash curl sudo
+          curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos -o "$RUNNER_TEMP/install-theos"
+          bash "$RUNNER_TEMP/install-theos"
+          "$THEOS/bin/install-sdk" 16.5
+          test -x "$THEOS/toolchain/linux/iphone/bin/ld"
+          test -d "$THEOS/sdks/iPhoneOS16.5.sdk/usr/include"
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
+
+      - name: Prepare XNU and dependencies
+        working-directory: hackios
+        run: |
+          xnu/apply.sh
+          xnu-deps/setup.sh --stage1
+          xnu-deps/setup.sh --stage2
+
+      - name: Build lisa kernel
+        working-directory: hackios
+        run: |
+          K=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837
+          build_status=0
+          ./xnu-build.sh -j"$(nproc)" -k || build_status=$?
+          test -s "$K"
+          echo "xnu-build.sh exit status: $build_status; linked kernel exists"
+          mkdir -p out
+          cp "$K" out/mach.development.lisa
+          shasum -a 256 out/mach.development.lisa > out/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hackios-lisa-kernel
+          path: hackios/out/
+          retention-days: 14
