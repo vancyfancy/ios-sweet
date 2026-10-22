@@ -3,7 +3,7 @@ name: hackios-lisa-kernel
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    branches: [main, codex/lisa-touch-driver]
     paths:
       - "hackios/patches/**"
       - ".github/workflows/hackios-lisa-kernel.yml"
