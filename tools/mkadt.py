@@ -2,7 +2,8 @@
 """Build the minimal Apple Device Tree that the SWEET xnu needs to boot.
 
 Only what the early boot path actually reads (see NOTES.md); every MMIO
-address comes from the sweet live FDT. Usage:  mkadt.py OUT.adt [--dump] [--qemu] [--highmem]
+address comes from the sweet live FDT or the lisa stock DTB (docs/lisa-port.md).
+Usage:  mkadt.py OUT.adt [--dump] [--qemu] [--highmem] [--machine=lisa]
 """
 import hashlib, os, struct, sys
 
@@ -12,6 +13,12 @@ import adt  # noqa: E402
 # Kernel-managed RAM: above every Qualcomm XPU carve-out (see NOTES.md)
 PHYS_BASE = 0xb0000000
 MEM_SIZE = 0x4d000000
+# lisa (SM7325, Mi 11 Lite 5G NE) first boot map, from the stock merged DTB
+# (docs/lisa-port.md): nothing carved in the low bank 0x40000000..0x7fffffff
+# per the compiled reserved-memory list, so use 1 GiB of it. The ABL-filled
+# live FDT is ground truth; a shim-side override will replace this constant.
+LISA_PHYS_BASE = 0x40000000
+LISA_MEM_SIZE = 0x40000000
 # Panic log buffer, carved from the TOP of the dram range and exposed to XNU as
 # /pram + /chosen/embedded-panic-log-size. Without it, pe_init.c's
 # check_for_panic_log() leaves gPanicBase == 0, debug_log_init() bails out twice
@@ -29,6 +36,8 @@ SOC_BASE = 0x01000000
 GICD, GICD_SIZE = 0x17a00000, 0x10000
 GICR, GICR_SIZE = 0x17a60000, 0x100000
 FB, FB_SIZE = 0x9c000000, 0x1700000
+# lisa: stock splash region (vendor_boot merged DTB "cont_splash_region").
+LISA_FB, LISA_FB_SIZE = 0xe1000000, 0x2300000
 SWEET_ECID = 0x5357454554000001  # 'SWEET' + 1, synthetic
 FB_W, FB_H, FB_STRIDE = 1080, 2400, 1080 * 4
 # Internal UFS host (ufshc@1d84000 "ufs_mem"); QEMU virt has none
@@ -74,9 +83,13 @@ def node(name, props=(), children=()):
     return n
 
 
-def build(seed=None, qemu=False, highmem=False):
-    """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py)."""
-    phys_base, mem_size = (HIGH_PHYS_BASE, HIGH_MEM_SIZE) if highmem else (PHYS_BASE, MEM_SIZE)
+def build(seed=None, qemu=False, highmem=False, machine='sweet'):
+    """qemu=True: same tree, but with QEMU virt's GIC addresses and CNTFRQ (tools/qemu-sweet.py).
+    machine='lisa': lisa constants (see docs/lisa-port.md); identity stays D22AP."""
+    lisa = machine == 'lisa'
+    phys_base, mem_size = (HIGH_PHYS_BASE, HIGH_MEM_SIZE) if highmem else (
+        (LISA_PHYS_BASE, LISA_MEM_SIZE) if lisa else (PHYS_BASE, MEM_SIZE))
+    fb, fb_size = (LISA_FB, LISA_FB_SIZE) if lisa else (FB, FB_SIZE)
     # Carve the panic log off the top so the kernel never allocates over it.
     panic_base = phys_base + mem_size - PANIC_LOG_SIZE
     mem_size -= PANIC_LOG_SIZE
@@ -191,7 +204,7 @@ def build(seed=None, qemu=False, highmem=False):
 
     fbcon = node('sweet-fbcon', [
         ph(),
-        ('reg', u64(FB, FB_SIZE)),
+        ('reg', u64(fb, fb_size)),
         ('width', u32(FB_W)),
         ('height', u32(FB_H)),
         ('stride', u32(FB_STRIDE)),
@@ -228,10 +241,16 @@ def build(seed=None, qemu=False, highmem=False):
 
     # Identity of the iPhone X whose userland runs here: compatible[0] is
     # hw.model/hw.target (D22AP), model is hw.machine/hw.product
-    # (iPhone10,3). 'xiaomi,sweet' stays for SweetPlatformExpert matching.
+    # (iPhone10,3). 'xiaomi,sweet' stays for SweetPlatformExpert matching;
+    # lisa advertises 'xiaomi,lisa' + 'qcom,sm7325' for the same expert to
+    # gain a LISA-compatible branch later.
+    rootc = (cstr('D22AP') + cstr('iPhone10,3') +
+             (cstr('xiaomi,lisa') + cstr('qcom,sm7325') if lisa
+              else cstr('xiaomi,sweet') + cstr('qcom,sm7150')) +
+             cstr('AppleARM'))
     return node('device-tree', [
         ph(),
-        ('compatible', cstr('D22AP') + cstr('iPhone10,3') + cstr('xiaomi,sweet') + cstr('qcom,sm7150') + cstr('AppleARM')),
+        ('compatible', rootc),
         ('model', cstr('iPhone10,3')),
         ('target-type', cstr('D22')),
         ('target-sub-type', cstr('D22AP')),
@@ -242,9 +261,13 @@ def build(seed=None, qemu=False, highmem=False):
 
 
 if __name__ == '__main__':
-    root = build(qemu='--qemu' in sys.argv, highmem='--highmem' in sys.argv)
+    machine = 'lisa' if '--machine=lisa' in sys.argv else 'sweet'
+    # --machine is a dir-level script flag; --qemu/--highmem stay sweet-only.
+    root = build(qemu='--qemu' in sys.argv, highmem='--highmem' in sys.argv,
+                 machine=machine)
     blob = adt.serialize(root)
     open(sys.argv[1], 'wb').write(blob)
     if '--dump' in sys.argv:
         adt.dump(adt.parse(blob)[0])
-    print(f'{sys.argv[1]}: {len(blob)} bytes', file=sys.stderr)
+    outname = sys.argv[1] + f' ({machine})' if machine != 'sweet' else sys.argv[1]
+    print(f'{outname}: {len(blob)} bytes', file=sys.stderr)
