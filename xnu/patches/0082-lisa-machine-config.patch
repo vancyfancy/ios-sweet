@@ -1,3 +1,19 @@
+--- a/bsd/conf/Makefile.template
++++ b/bsd/conf/Makefile.template
+@@ -44,8 +44,9 @@
+         -Warray-bounds-pointer-arithmetic
+ SFLAGS+= -include meta_features.h
+ 
+-# This provider is built into SWEET; other boards use their normal kext.
+-ifeq ($(CURRENT_MACHINE_CONFIG),SWEET)
++# These providers are built into SWEET and follow the same build for LISA;
++# other boards use their normal kext / corecrypto files.
++ifneq (,$(filter $(CURRENT_MACHINE_CONFIG),SWEET LISA))
+ SWEET_PTHREAD_ROOT = $(SRCROOT)/bsd/pthread/sweet_libpthread
+ SWEET_PTHREAD_INC = -I$(SWEET_PTHREAD_ROOT) -I$(SWEET_PTHREAD_ROOT)/private -I$(SWEET_PTHREAD_ROOT)/include
+ sweet_pthread_init.o_INCFLAGS = $(SWEET_PTHREAD_INC)
+
+
 --- a/bsd/dev/mem.c
 +++ b/bsd/dev/mem.c
 @@ -153,7 +153,7 @@
@@ -650,6 +666,21 @@
  //
  //	SWEET: root on a GPT partition of the internal UFS (bsd/dev/sweet_ufs.c)
  //
+
+
+--- a/libkern/conf/Makefile.template
++++ b/libkern/conf/Makefile.template
+@@ -19,7 +19,9 @@
+ CFLAGS+= -include meta_features.h -DLIBKERN_KERNEL_PRIVATE -DOSALLOCDEBUG=1
+ SFLAGS+= -include meta_features.h
+ 
+-ifeq ($(CURRENT_MACHINE_CONFIG),SWEET)
++# BearSSL portable crypto providers are staged the same way for SWEET/LISA;
++# other boards use their normal corecrypto files.
++ifneq (,$(filter $(CURRENT_MACHINE_CONFIG),SWEET LISA))
+ SWEET_AES_ROOT = $(SRCROOT)/libkern/crypto/sweet_bearssl
+ SWEET_AES_INC = -I$(SWEET_AES_ROOT)/inc -I$(SWEET_AES_ROOT)/src
+ sweet_aes.o_INCFLAGS = $(SWEET_AES_INC)
 
 
 --- a/libkern/crypto/corecrypto_aes.c
