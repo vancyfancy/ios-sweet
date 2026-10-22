@@ -103,6 +103,31 @@ first).** Observations/notes that matter for the post-revival boot:
   (their loader_return/architecture is the strategic fallback; their
   numbers = redwood SM7325 same generation).
 
+**Evening closeout (added ~16:55, still autonomous):**
+- CI 39747166842 = **success**; 0084 LISA kernel downloaded,
+  sha256 `ae6babce52d70f40fb80f51420a9b4bcce6ee93bba836f10ad73b05b5981ff5a`
+  (`_lisa/ci-kernel/kernel.development.lisa`, 17206064 B — same size again,
+  different bytes: the lisa kernels so far all size-match; do not judge by size).
+- Boot9 image baked: `_lisa/boot-images/shim-lisa-boot9-femto.img`,
+  sha256 `fc46a8b8a975ec30c2094f9e4e0ec3936f09561402e14fdcdd769749e681107b`
+  (= boot8's shim + 0084 kernel, baked `/tmp/lisa-p4.payload`, default cmdline).
+- 0084 wiring confirmed: `sweet_usb_probe()` is called from
+  `sweet_ufs.c` UFS init unconditionally — the femto/GCC state report runs on
+  every boot, no bootarg needed, and lands in pram via the gui console capture.
+- **Auto-cycle driver running** (`/tmp/boot9-auto-cycle.sh`): whenever
+  `fastboot devices` shows the phone it boots boot9, waits ≤280 s for the
+  return, repeats (≤12 cycles), logging every timestamp to
+  `/tmp/boot9-cycle.log`; stops early if adb (Android) appears or after
+  MAX cycles. Expected per-boot classes: ~50–80 s (kernel ran+panicked),
+  ~110–115 s (shim hold+reset), ~15–25 s (shim panicked), >280 s (absent).
+- EPSS cpufreq lead for the NEXT session (from HackiOS `redwood_cpufreq.c` +
+  our `lisa-base07.dts`): identical `qcom,cpufreq-hw-epss` block with the same
+  base `0x18591000` (domains 0/1/2 = 0x18591000/0x18592000/0x18593000,
+  0x1000 each, LUT at +0x100 word/row [31:30]=src [7:0]=×19.2 MHz, PERF_STATE
+  at +0x320 write row idx; alternate src = 300 MHz). One write/domain maxes the
+  cluster — candidate 0085/0086 (file + Makefile `optional` hunk like sweet drivers).
+
+
 ### >>> UPDATE 2026-10-22 EVENING: LISA live bring-up — shim XPU wall broken, LISA KERNEL BOOTS AND RUNS <<<
 Phone present (fastboot product=lisa, serial `5b49cac8`, unlocked). Boots 1–7
 were run as temporary `fastboot boot` only; Android untouched.
