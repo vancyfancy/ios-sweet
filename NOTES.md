@@ -2,6 +2,54 @@
 
 ## Agent handoff / active work (2026-10-15, latest)
 
+### >>> HackiOS reference (2026-10-22, cloned to _lisa/reference/) <<<
+GitHub: `oosexgang/hackios-xnu-kernel` (+ `hackios-xnu-userland`). SAME SM7325
+SoC family (POCO X5 Pro "redwood", 778G) with **iOS 16.5 userspace on OSS XNU 8796.121.2**:
+lock screen→home screen, Adreno 642L GPU via Mesa/freedreno (`gpu=1`), Wi-Fi
+ath11k, touch (Goodix), 8 cores, UFS-writable data. **Their post-redwood plan
+says Mu-Silicium "follows lisa, the same SoC package (KodiakPkg)"** — a lisa
+UEFI may already exist upstream.
+
+**Their boot chain vs ours:**
+- theirs: `fastboot boot` → **Mu-Silicium UEFI (BootShim copies the "XNUP"
+  payload to PAYLOAD_BASE)** → **resident EFI loader (xnuloader/)** → XNU.
+  The loader STAYS RESIDENT with a **USB fastboot-protocol link**: `./xl`
+  drives it from the Mac (log, screenshot, screen+sound recording, reboot)
+  → this is the "get the panic yourself" infrastructure we lacked.
+- ours: `fastboot boot` → our bare-metal shim (+ payload + ADT) → xnu. No
+  resident component → no USB console → panics only readable on-phone.
+
+**Kernel-side handoff (directly portable idea):**
+- `xnu/files/osfmk/arm64/loader_return.c`: kernel keeps a **log ring**
+  (`loader_log`, fed from `pe_kprintf.c` serial_putc_crlf →
+  `loader_log_putc`, per-CPU-safe lock); `loader_return()` is called in
+  `panic_spin_forever()` and ahead of `kdp_machine_reboot_type()`; it hands
+  control (and the log) back to the resident loader.
+- `pexpert/arm64/BCM2837.h` redwood values: `GENERIC_GIC_V3_IRQ=1`,
+  `GENERIC_PSCI_SMP=1`, `__ARM_PAN_AVAILABLE__=1`, no fixed
+  PLATFORM_PANIC_LOG_PADDR (**panic log region from device tree /pram**,
+  like ours). Loader platform: `gic_dist=0x17A00000 gic_redist=0x17A60000`,
+  fb=0xE1000000, cores=8 shift=8, small_cores=0x0f — **matches our lisa
+  dossier (same SM7325 map)**.
+- `osfmk/console/video_console.c`: force the boot-provided framebuffer to
+  WWWT because scrolling reads fb back as device memory (our screen already
+  blue-paints fast, but check this if scrolling is slow).
+- Their `mkxnuimg.py`/`uefi/` = BootShim copies `XNUP` payload after the UEFI
+  image: same pattern as our mkbootimg ramdisk payload.
+
+**Licence:** APSL-2.0 for their XNU changes, MIT for their userland code —
+both directly readable/reusable with attribution; keep the clones in
+`_lisa/reference/` (gitignored), do not vendor their kernel binaries/ROM.
+
+**Strategic read:** our sweet fork (16.7.10, SM7150, deep driver coverage)
+and their redwood (16.5, SM7325) are complementary proof points. When lisa's
+kernel boots to userspace with our flow, cherry-pick their *concepts*
+(loader-return log ring) and *SM7325 numbers*; consider their UEFI chain as
+a fallback if our ABL-context flow stalls (it buys: resident unreliable-USB
+console, screenshots, and a working SM7325 GPU/WiFi/touch reference to
+diff against). NOT a merge candidate (different kernel base + config
+philosophy).
+
 ### >>> UPDATE 2026-10-22 EVENING: LISA live bring-up — shim XPU wall broken, LISA KERNEL BOOTS AND RUNS <<<
 Phone present (fastboot product=lisa, serial `5b49cac8`, unlocked). Boots 1–7
 were run as temporary `fastboot boot` only; Android untouched.
