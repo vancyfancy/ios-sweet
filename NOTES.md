@@ -2,6 +2,86 @@
 
 ## Agent handoff / active work (2026-10-15, latest)
 
+### >>> UPDATE 2026-10-22 EVENING: LISA live bring-up — shim XPU wall broken, LISA KERNEL BOOTS AND RUNS <<<
+Phone present (fastboot product=lisa, serial `5b49cac8`, unlocked). Boots 1–7
+were run as temporary `fastboot boot` only; Android untouched.
+
+**Boot 1–4 panic decode (screen-read, transcribed by user):**
+- `PANIC SYNC / SLOT n=4 / STAGE loader / ESR 0x96000061 / ELR in
+  adt_patch_u64s / FAR 0xAFFFE5B4` — and **boot 4 added the decisive facts:
+  `MMU sctlr=30D00808 tcr=80803510 / TTBR0=9FF22000`** → SCTLR bit0 (M) = 0:
+  **the MMU was OFF at the fault**. DFSC 0x21 with MMU off is therefore NOT a
+  page walk but the classic **Qualcomm XPU abort signature**.
+- Root cause: lisa's ABL places our ramdisk at **0xAF027000–0xAFFFE690**
+  (INITRD lo/hi printed live) and keeps that loader buffer **read-only** for
+  us (reads OK: payload header/segments/ADT walk; writes cause an XPU abort).
+  We patched the ADT **in place inside the ramdisk** and stored
+  `p->phys_base` back into the payload header — both wrote into that region →
+  abort. (On sweet the ABL's buffer is writable, so nothing noticed.)
+- exciting detail: the ABL's live FDT reports `banks=3, BANK0
+  base=0x80000000 size=0x39700000`; BANK1/2 lines exist on screen (skipped by
+  the transcription). The reconcile relocated (physfix). X1=0x7FF00000 =
+  prval[0] = phys + adt_mem → the relocated bank ends at 0x80000000.
+  **Open question: why bank_fits did not keep the baked map
+  ([0x40000000,0x3FF00000) evidently does not fit any reported bank).**
+  Boot-5 image already prints all 3 banks — next time you have eyes on the
+  screen, read the BANK1/BANK2 lines.
+
+**Shim fixes shipped on fork (commits `dec40f9` → `6b6e2f8`):**
+- `start.S` prologue: SCTLR M|C clear + tlbi vmalle1 + D-cache clean by
+  set/way at entry, so the shim runs at VA==PA even if the ABL hands over
+  with its MMU on (proven live: sctlr=0x30D00808 at the fault).
+- `loader.c`: ADT is copied out of the read-only ramdisk first and patched
+  at its writable kernel-area copy (`adt_px`); phys/mem reconciliation
+  lives in **locals** (no payload-header stores); overlap check = the span
+  actually written (segments+ADT+bootargs), not the whole mem map; banks
+  print = full list. Sweet regression path unchanged (no relocate → same
+  values).
+- `shim.c`: panic handler **no longer erases*** the boot facts; correct
+  x29/x30 are saved in the vector frame (slot 29 was never written and
+  printed string-garbage); added SCTLR/TCR/TTBR dump; the 9 s panic reset
+  loop for automated observation. **Restore reset(40) once a person is
+  reading the screen again.**
+- 6-second hold before the kernel jump (console stays readable).
+
+**Automated boot outcome (no person needed):** with the 9 s panic reset the
+phone returns to fastboot ~13–16 s after a shim panic; the no-payload path
+returns ~180 s; a live kernel = no immediate return.
+- **Boot 6: fastboot returns ~50.6 s → LISA KERNEL BOOTED AND RAN ~40 s**
+  (/boot5-6 = shim+"hold 6 s"+launch). Then the kernel itself knocks the
+  phone back into fastboot.
+- **Boot 7 (payload cmdline + `sweetusb=2`): returns ~79.1 s → kernel ran
+  ~70 s, but NO USB device enumerated on the Mac** (checked:
+  system_profiler, fastboot). Live-log over USB not yet achieved; the USB
+  driver state on SM7325 is an open task.
+- The kernel's reboot route was found in our tree: `osfmk/kern/debug.c`
+  (~line 1398) calls `PEHaltRestart(kPEPanicDiagnosticsDone)` unconditionally
+  on panic → the phone resets ~40–70 s in.
+
+**Kernel 0083 shipped (commit `6b6e2f8`, pushed): `xnu/patches/
+0083-sweet-panic-halt-on-dbhalt.patch`** — with `debug` DB_HALT (0x1) the
+kernel **freeze on panic (wfe spin)**, the panic screen is turned into a
+stable, readable display, and the phone stays OUT of fastboot forever
+(detectable by my poll; the user can then transcribe whenever).
+
+**In flight: CI LISA run 39740661473** (dispatched 2026-10-22 07:27Z, ~8 min
+expected). When it lands:
+1. download `_lisa/ci-kernel/kernel.development.lisa` from that run.
+2. rebake payload: `python3 tools/mkpayload.py _lisa/ci-kernel/
+   kernel.development.lisa _lisa/boot-images/lisa.adt /tmp/lisa-p3.payload
+   --cmdline "debug=0xd serial=3 cpus=1 keepsyms=1"` (0xd = DB_HALT|DB_NMI|
+   DB_KPRT → the freeze).
+3. `cd shim && DTB=../_lisa/rom/parts/merged/lisa-base07.dtb ./build.sh
+   /tmp/lisa-p3.payload` then `fastboot boot out/shim-boot.img`.
+4. poll fastboot ~5 min: if it **never returns**, the kernel froze at its
+   panic with the message on screen → put the phone back in fastboot by
+   holding power only after the user transcribes (or power-cycle).
+5. also worth trying `sweetusb=2` in the same cmdline once it freezes (needs
+   a kernel that has the driver state; if USB enumerates, use the bare metal
+   console live-log without the user).
+
+### >>> Older: 2026-10-22 lisa port groundwork (see below) <<<
+
 ### >>> UPDATE 2026-10-22: lisa port groundwork (no phone; phone not found) <<<
 
 **Mission:** port ios-sweet to **lisa** (Mi 11 Lite 5G NE, SM7325-Abyss / SD778G+).
