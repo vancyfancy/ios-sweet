@@ -94,7 +94,7 @@ static uint64_t now(void)
 	return rsr("cntpct_el0");
 }
 
-static void delay_ms(unsigned ms)
+void delay_ms(unsigned ms)
 {
 	uint64_t end = now() + rsr("cntfrq_el0") / 1000 * ms;
 	while (now() < end)
@@ -142,7 +142,11 @@ void exc_handler(uint64_t slot, uint64_t *regs)
 		irq_handler();
 		return;
 	}
-	con_clear(BLUE);
+	/* Do NOT erase the screen: the loader's printed boot facts above are
+	 * half the diagnosis; append the fault context instead. Note the
+	 * real stashed x29/x30 sit at frame+240/248 (slots 30/31): slot 29
+	 * is never written and printed garbage before. */
+	con_skip();
 	switch (slot & 3) {
 	case 0: con_str("PANIC", "SYNC"); break;
 	case 1: con_str("PANIC", "IRQ"); break;
@@ -155,10 +159,13 @@ void exc_handler(uint64_t slot, uint64_t *regs)
 	con_hex("ELR", rsr("elr_el1"));
 	con_hex("FAR", rsr("far_el1"));
 	con_hex("SPSR", rsr("spsr_el1"));
-	con_hex("X0", regs[0]);
-	con_hex("X1", regs[1]);
-	con_hex("X30", regs[29]);	/* stashed lr is just above the frame */
-	reset(40);
+	con_hex2("MMU", "sctlr=", rsr("sctlr_el1"), "tcr=", rsr("tcr_el1"));
+	con_hex2("TTBR", "0=", rsr("ttbr0_el1"), "1=", rsr("ttbr1_el1"));
+	con_hex2("REGS", "x0=", regs[0], "x1=", regs[1]);
+	con_hex2("REGS", "x28=", regs[28], "x29=", regs[30]);
+	con_hex("X30", regs[31]);	/* frame + 248 = the stashed LR */
+	reset(9);/* bring-up loop goes fast; restore 40 when the user reads the screen */
+	/* reset() prints "in 40s" at >20 which is fine for now */
 }
 
 /* ---- SMP ---- */
@@ -436,5 +443,6 @@ void shim_main(uint64_t dtb)
 	test_gic();
 
 	stage = "done";
-	reset(40);
+	reset(9);/* bring-up loop goes fast; restore 40 when the user reads the screen */
+	/* reset() prints "in 40s" at >20 which is fine for now */
 }

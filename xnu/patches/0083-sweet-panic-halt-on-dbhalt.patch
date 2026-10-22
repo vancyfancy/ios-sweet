@@ -1,0 +1,20 @@
+--- a/osfmk/kern/debug.c
++++ b/osfmk/kern/debug.c
+@@ -1400,6 +1400,17 @@
+ 		}
+ 	}
+ 
++#if defined(__arm64__)
++	/*
++	 * sweet bring-up: with DB_HALT present, freeze instead of restarting so
++	 * the panic screen stays readable on the framebuffer.
++	 */
++	if (debug_boot_arg & DB_HALT) {
++		for (;;)
++			__asm__ volatile("wfe");
++	}
++#endif
++
+ 	if (debugger_current_op == DBOP_PANIC ||
+ 	    ((debugger_current_op == DBOP_DEBUGGER) && debugger_is_panic)) {
+ 		PEHaltRestart(kPEPanicDiagnosticsDone);

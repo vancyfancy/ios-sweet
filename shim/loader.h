@@ -19,6 +19,9 @@ extern int g_banks_n;
 /* Boot the SWEETXNU payload found in the ABL ramdisk; returns only on error. */
 const char *loader_boot(uintptr_t dtb);
 
+/* millisecond delay on the generic timer (defined in shim.c) */
+void delay_ms(unsigned ms);
+
 /* Read the live-FDT facts (splash framebuffer, DRAM banks) and switch the
  * console framebuffer; call before any console output. */
 void loader_probe(uintptr_t dtb);

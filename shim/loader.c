@@ -250,51 +250,49 @@ const char *loader_boot(uintptr_t dtb)
 	if (g_banks_n > 0 && !bank_fits(phys, p->mem_size)) {
 		const struct fdt_reg *bk = bank_pick();
 		if (bk && bk->size >= MIN_BANK_SIZE) {
-			con_hex2("PHYSFIX", "was=", phys, "sz=", p->mem_size);
 			phys = bk->base;
 			adt_mem = bk->size - PANIC_LOG_SIZE;
 			moved = 1;
+			con_hex2("PHYSFIX", "now=", phys, "sz=", adt_mem);
 		} else
 			adt_mem = p->mem_size;	/* cannot relocate; keep the baked map */
 	} else
 		adt_mem = p->mem_size;
 	con_hex2("FDTB", "banks=", g_banks_n, "splash=", g_splash_ok);
-	if (g_banks_n > 0)
-		con_hex2("BANK0", "base=", g_banks[0].base, "size=", g_banks[0].size);
+	for (int bi = 0; bi < g_banks_n && bi < 3; bi++) {
+		char lab[] = "BANK0";
+		lab[4] = '0' + bi;
+		con_hex2(lab, "base=", g_banks[bi].base, "size=", g_banks[bi].size);
+	}
 
 	/* mkpayload bakes the ADT with the panic-log carve already applied:
 	 * dram-size excludes it, /pram reg sits at the hole's top. A relocated
 	 * map gets the same recomputation; the fbcon reg always tracks the
-	 * splash region (identical values on sweet = no-op). */
-	uintptr_t adt = rd_start + p->adt_off;
-	uint64_t prvals[] = { phys + adt_mem, PANIC_LOG_SIZE };
-	uint64_t dbval[] = { phys };
-	uint64_t dsval[] = { adt_mem };
-	if (moved) {
-		int pram_ok = adt_patch_u64s(adt_child(adt, "pram"), "reg", prvals, 2);
-		int db_ok = adt_patch_u64s(adt_child(adt, "chosen"), "dram-base", dbval, 1);
-		int ds_ok = adt_patch_u64s(adt_child(adt, "chosen"), "dram-size", dsval, 1);
-		con_hex2("ADTPATCH", "pram=", pram_ok, "dram=", (uint64_t)(db_ok && ds_ok));
-	}
-	/* the framebuffer ADT reg always tracks what the splash region says:
-	 * on sweet the values are already identical, on lisa this is what
-	 * connects the ABL's placement to the console driver */
-	if (g_splash_ok) {
-		uintptr_t fbcon = adt_child(adt, "sweet-fbcon");
-		uint64_t fbvals[] = { g_splash.base, g_splash.size };
-		int fb_ok = adt_patch_u64s(fbcon, "reg", fbvals, 2);
-		con_hex2("FBPATCH", "ok=", fb_ok, "base=", g_splash.base);
-	}
+	 * splash region (identical values on sweet = no-op). The patches and
+	 * the phys/mem reconciliation run on local state: the ABL's loader
+	 * buffer is read-only to us (XPU) - in-place patching or header
+	 * stores there fault, seen live on lisa. */
+	uint64_t pa_of_va_base = phys - p->virt_base;	/* pa = va + this */
+	uintptr_t adt = rd_start + p->adt_off;		/* XPU read-only source */
 
-	p->phys_base = phys;
-	p->mem_size = adt_mem;
-	uint64_t pa_of_va_base = p->phys_base - p->virt_base;	/* pa = va + this */
-	con_hex2("PHYS", "base=", p->phys_base, "size=", p->mem_size);
+	con_hex2("PHYS", "base=", phys, "size=", adt_mem);
 	con_hex("VIRT", p->virt_base);
 	con_hex("ENTRY", p->entry_va);
 
-	/* The payload must not overlap where the kernel goes. */
-	if (rd_end > p->phys_base && rd_start < p->phys_base + p->mem_size)
+	/* The kernel area actually written (segments + ADT + boot_args) must
+	 * not overlap the ramdisk; the whole-mem-map form of this check once
+	 * fired spuriously after relocation because a mapped bank extends
+	 * past the kernel end while the initrd sits low inside the bank. */
+	uintptr_t adt_pa = p->kernel_end + pa_of_va_base;
+	uintptr_t ba_pa = (adt_pa + p->adt_size + PAGE_16K - 1) & ~(PAGE_16K - 1);
+	uintptr_t top = ba_pa + PAGE_16K;
+	uintptr_t first_dst = (uintptr_t)-1;
+	for (uint32_t i = 0; i < p->nsegs; i++) {
+		uintptr_t dst = p->segs[i].vmaddr + pa_of_va_base;
+		if (dst < first_dst)
+			first_dst = dst;
+	}
+	if (rd_start < top && rd_end > first_dst)
 		return "ramdisk overlaps kernel memory";
 
 	for (uint32_t i = 0; i < p->nsegs; i++) {
@@ -306,19 +304,35 @@ const char *loader_boot(uintptr_t dtb)
 	}
 	con_hex2("SEGS", "n=", p->nsegs, "end=", p->kernel_end + pa_of_va_base);
 
-	/* ADT, then boot_args, behind the kernel; everything below topOfKernelData is ours. */
-	uintptr_t adt_pa = p->kernel_end + pa_of_va_base;
+	/* Copy the ADT out of the read-only ramdisk region, then patch the
+	 * writable copy: identical result on sweet, no XPU abort on lisa. */
 	copy64(adt_pa, adt, p->adt_size);
-	uintptr_t ba_pa = (adt_pa + p->adt_size + PAGE_16K - 1) & ~(PAGE_16K - 1);
-	uintptr_t top = ba_pa + PAGE_16K;
+	uint64_t prvals[] = { phys + adt_mem, PANIC_LOG_SIZE };
+	uint64_t dbval[] = { phys };
+	uint64_t dsval[] = { adt_mem };
+	if (moved) {
+		int pram_ok = adt_patch_u64s(adt_child(adt_pa, "pram"), "reg", prvals, 2);
+		int db_ok = adt_patch_u64s(adt_child(adt_pa, "chosen"), "dram-base", dbval, 1);
+		int ds_ok = adt_patch_u64s(adt_child(adt_pa, "chosen"), "dram-size", dsval, 1);
+		con_hex2("ADTPATCH", "pram=", pram_ok, "dram=", (uint64_t)(db_ok && ds_ok));
+	}
+	/* the framebuffer ADT reg always tracks what the splash region says:
+	 * on sweet the values are already identical, on lisa this is what
+	 * connects the ABL's placement to the console driver */
+	if (g_splash_ok) {
+		uintptr_t fbcon = adt_child(adt_pa, "sweet-fbcon");
+		uint64_t fbvals[] = { g_splash.base, g_splash.size };
+		int fb_ok = adt_patch_u64s(fbcon, "reg", fbvals, 2);
+		con_hex2("FBPATCH", "ok=", fb_ok, "base=", g_splash.base);
+	}
 
 	zero64(ba_pa, PAGE_16K);
 	volatile struct boot_args *ba = (volatile struct boot_args *)ba_pa;
 	ba->Revision = 2;
 	ba->Version = 2;
 	ba->virtBase = p->virt_base;
-	ba->physBase = p->phys_base;
-	ba->memSize = p->mem_size;
+	ba->physBase = phys;
+	ba->memSize = adt_mem;
 	ba->topOfKernelData = top;
 	ba->Video.v_baseAddr = g_splash_ok ? g_splash.base : FB_BASE;
 	ba->Video.v_display = 1;
@@ -329,13 +343,15 @@ const char *loader_boot(uintptr_t dtb)
 	ba->deviceTreeP = adt_pa - pa_of_va_base;	/* xnu reads it with the MMU on: a VA */
 	ba->deviceTreeLength = (uint32_t)p->adt_size;
 	for (int i = 0; i < BOOT_LINE_LENGTH; i++)
-		ba->CommandLine[i] = p->cmdline[i];
-	ba->memSizeActual = p->mem_size;
+		ba->CommandLine[i] = p->cmdline[i];	/* read-only source */
+	ba->memSizeActual = adt_mem;
 	con_hex2("BOOTARG", "pa=", ba_pa, "top=", top);
 
 	uint64_t entry_pa = p->entry_va + pa_of_va_base;
 	con_hex("JUMP", entry_pa);
 	con_str("XNU", "jumping (fbcon clears screen)");
+	/* bring-up: hold the screen so the lines can be read */
+	delay_ms(6000);
 
 	/* Everything was written with the MMU and caches off; drop any stale I-cache lines too. */
 	__asm__ volatile("dsb sy; ic iallu; dsb sy; isb" ::: "memory");
