@@ -108,6 +108,50 @@ philosophy).
   check upstream Mu-Silicium for an existing lisa device entry (their
   ACPI tables imply one exists).
 
+### session-4 CONTINUATION (19:30–21:30): their redwood UEFI does NOT start on lisa; lisa profile done
+- (a) `fastboot boot hackios-redwood-boot.img` (and a locally built
+  `/tmp/xnu-usb.img` = mkpayload `--usb` loader + mkxnuimg, ×2 attempts like
+  their `enter`) = **bootimage accepted OKAY, screen goes BLACK, USB comes
+  back under STOCK ABL** (`getvar all` showed token/anti/crc + full partition
+  dump = Xiaomi bootloader; product: lisa; `oem log`/`version`/`screen`
+  unknown). VERDICT (observed): their UEFI dies before display init and
+  before its loader takes USB; phone falls back to stock fastboot by itself
+  (same shape as our boots 1–5 resets). User was screen-watcher: no logo, no
+  text, nothing. Guesses (not confirmed): BootShim copy to 0xF0000000 /
+  FD 0x9FD00000 collides with a lisa reservation, or redwood-XBL-derived UEFI
+  drivers unhappy; NOT diagnostic-loopable without a serial/qdss link.
+- Attempt registration: one retry loop got user-interrupted mid-flight
+  (tool abort); after that user manually power-rebooted into fastboot
+  (phone healthy, serial 5b49cac8, anti:1, unlocked:yes).
+- **lisa port kit created** (first concrete HackiOS-port artifacts):
+  - `common/devices/lisa.conf` + `lisa.platform.c` (via their
+    `new-device.sh lisa _lisa/rom/parts/dtbs/dtb07_0x4e8813.dtb`, then hand-
+    corrected on the Mac; their dtc parse gave shift 0 / small 0x0 = wrong —
+    dossier + redwood parity says shift 8 / small 0x0f; conf set FB_BASE
+    0xE1000000, WIFI_ATH11K=1, same BOOTARGS as redwood, fw list + haptic
+    TODO). Files live in the reference clone (untracked by our git ✓).
+  - KEY SIMPLIFICATION: platform_redwood values = identical to lisa's
+    (io window 0x00400000/0x3FC00000, GIC 0x17A00000/60000, shift 8, small
+    0x0f, fb 0xE1000000) ⇒ **their loader needs NO platform change for lisa**;
+    fb base picks redwood's platform struct and it's numerically right.
+    The real port work = ONLY the UEFI + BootShim (lisa) build.
+- **xbl.img missing**: our ROM parts = 9 pieces (boot/dtbo/vendor_boot/dtbs/
+  lisa-kernel.bin/merged…), no full-firmware images. For a lisa Mu-Silicium
+  build we need lisa's own UEFI drivers = UEFIReader on lisa's `xbl.img`
+  (= full MIUI fastboot/OTA package download, offline; no phone needed),
+  then Mu-Silicium + their uefi/mu-silicium.patch + lisaPkg + EDK2 build —
+  they document it (docs/PORTING.md §1); `mkxnuimg.py` builds the BootShim
+  from the Mu-Silicium tree itself. Candidate build host: our GitHub Actions
+  CI (Linux) like the kernel job. NOTE: their redwoodPkg dsc ALREADY
+  compiles `lisa/AcpiTables.inf` (lisa ACPI in-binary!) and fdf references
+  `sm7325-xiaomi-lisa.dtb` (commented) — hints a lisa Pkg once exists there.
+- `getvar all` dump (stock ABL, for the record): unlocked:yes, anti:1,
+  variant: SM_ UFS, parallel-download-flash:yes, hw-revision 10000.
+- Phone state at end: in stock fastboot (user can boot to Android to
+  charge; nothing further needs the phone today). Push of NOTES still 403
+  on https github (commits local: 9806663 + this one).
+
+
 ### >>> UPDATE 2026-10-22 NIGHT (agent session 3): pram panic-capture shim; phone went silent after boot8 <<<
 Started from the green 0083 CI kernel (run 39740661473, sha256
 `78f07c13c209f228923aedcbc84cbcb14b0b9c707a3a3d034ecd34b09b988697`, in
