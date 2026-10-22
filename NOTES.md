@@ -50,6 +50,64 @@ console, screenshots, and a working SM7325 GPU/WiFi/touch reference to
 diff against). NOT a merge candidate (different kernel base + config
 philosophy).
 
+### >>> UPDATE 2026-10-22 LATE (agent session 4): user-approved PIVOT to the HackiOS chain <<<
+- **Phone truth from the user**: boot8 wasn't lost — phone had been sitting in
+  Android (revived by a power press, back in Android then fastboot). boot9#1
+  user report: the red screen = **PANIC SYNC** (shim exception screen, same
+  signature as boots 1–4), then its reset(9) landed **in Android** (not
+  fastboot) — 2nd time the shim reset path produced Android (boot8 same).
+  Boots 1–5 = same reset code → fastboot. Unknown why; parked: we pivot.
+  Exact PANIC SYNC lines (STAGE/ESR/ELR/FAR) still unseen — guess (not
+  confirmed): fault inside the new pram reader, stage=pram.
+- **User rules restated**: no bricking + ask before destructive steps.
+  Android was NOT a rule ("never agreed android stays") — it stays only while
+  convenient; UFS-for-iOS approved 2026-10-15 stands.
+- **PIVOT approved by user**: use HackiOS's chain as the lisa bring-up base
+  instead of hand-rolling sweet-fork drivers. Our shim/CI/patches (0081–0084)
+  = parked, kept for reference, NOT deleted.
+- **HackiOS prebuilt verified** (`_lisa/reference/hackios-xnu-kernel/prebuilt/`,
+  `shasum -c SHA256SUMS` all OK): `mach.development.bcm2837` (their XNU
+  8796.121.2/16.5 kernel, 15.6 MB), `loader.efi` (resident EFI loader),
+  `uefi/SILICIUM_UEFI.fd` (Mu-Silicium UEFI 2 MB, built for redwood),
+  `uefi/BootShim.bin`, `uefi/redwood.dtb` (405 KB), `mkbootimg.py`.
+  Their UEFI is **not redwood-only**: `uefi/files/Platforms/Xiaomi/redwoodPkg/redwood.dsc:90`
+  compiles `lisa/AcpiTables.inf` (= **lisa ACPI tables in our binary**) and
+  `redwood.fdf:101` has a commented-out `sm7325-xiaomi-lisa.dtb` RAW section.
+- **Release asset downloaded**: v0.1.0 `hackios-redwood-boot.img` (1,470,464 B,
+  sha256 `4fd27190b7515bafeadae324d08d9495f09530078e84902e13b0f42f37181c1f`)
+  → `_lisa/boot-images/hackios-redwood-boot.img`. UEFI+loader only (system
+  image is built on the host, per their README).
+- **`xl` tool** (bash, drives the loader over the fastboot USB protocol):
+  `enter` (adb/fastboot→loader) · `run [N]` (upload kernel, run, fetch log) ·
+  `ramdisk` (uploads userland/system.apfs once; stays in RAM across runs) ·
+  **`screenshot` (PNG of the phone's framebuffer over USB — no-screen-turning
+  needed)** · `log/stop/reboot/reload/memmap/state`. `XL_SECS` (default 8,
+  kernel auto-returns to loader), `XL_CMDLINE=-v` (boot text on screen),
+  loader answers live during runs (firmware ≥0.5). Logs → `logs/`.
+  Loader detection: `fastboot getvar product` = `xnuloader`.
+- **Porting path**: `common/new-device.sh <codename> path/to/device.dtb`
+  generates the device profile + loader platform from the DTB; then
+  `docs/PORTING.md` (UEFI port, loader platform, kernel drivers, firmware).
+  Device profiles: `common/devices/redwood.conf`, `_template.conf`.
+- **Firmware rule** (theirs): pull from the phone's own Android
+  (`/vendor/firmware/a660_{gmu.bin,sqe.fw,zap.mdt,zap.b00..b02}` GPU,
+  `wpss.*` Wi-Fi, `adsp.*` audio, `aw8697_haptic.bin`) — VERIFY matching
+  paths/names on lisa's Android before relying on redwood's list.
+- **macOS port TODO for `xl`**: its `fb()` uses `flock`/`timeout` =
+  Linux-only (no flock on macOS); first probe can bypass `xl` with plain
+  `fastboot` commands, or patch fb() to a mkdir-style lock.
+- **Tonight's plan (needs phone in fastboot)**: (a) `fastboot boot`
+  hackios-redwood-boot.img on lisa → `fastboot getvar product` → if
+  `xnuloader`, the redwood UEFI woke on lisa (lisa ACPI tables are in it);
+  fetch `xl log`/log via raw fastboot. (b) then `xl run` XX with prebuilt
+  kernel, XL_SECS=15 → FIRST full XNU log+B device reachable from the Mac on
+  lisa. Risk (flagged): DTB inside = redwood's vendor tree → panel/touch
+  codes differ (GPU/USB/GIC same SoC); USB loader link does not need a panel,
+  and a hang is RAM-only (power-press revive as today, no brick class).
+  (c) proper port = `new-device.sh lisa` with lisa-base07 DT, later; and
+  check upstream Mu-Silicium for an existing lisa device entry (their
+  ACPI tables imply one exists).
+
 ### >>> UPDATE 2026-10-22 NIGHT (agent session 3): pram panic-capture shim; phone went silent after boot8 <<<
 Started from the green 0083 CI kernel (run 39740661473, sha256
 `78f07c13c209f228923aedcbc84cbcb14b0b9c707a3a3d034ecd34b09b988697`, in
