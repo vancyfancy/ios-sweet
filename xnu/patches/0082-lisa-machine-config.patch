@@ -1,3 +1,25 @@
+--- a/bsd/dev/mem.c
++++ b/bsd/dev/mem.c
+@@ -153,7 +153,7 @@
+ 	return 0;
+ }
+ 
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ /*
+  * SWEET: daemons started by launchd write stdout/stderr to /dev/null, and
+  * pointing a launchd job at /dev/console stops it from launching at all
+@@ -254,7 +254,7 @@
+ 			if (rw == UIO_READ) {
+ 				return 0;
+ 			}
+-#if defined(ARM64_BOARD_CONFIG_SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
+ 			{
+ 				char name[32];
+ 				if (sweet_null_tee(name, sizeof(name))) {
+
+
 --- a/bsd/dev/sweet_keys.c
 +++ b/bsd/dev/sweet_keys.c
 @@ -4,7 +4,7 @@
@@ -9,6 +31,7 @@
  #include <sys/param.h>
  #include <sys/systm.h>
  #include <kern/clock.h>
+
 
 --- a/bsd/dev/sweet_rpmh.c
 +++ b/bsd/dev/sweet_rpmh.c
@@ -22,6 +45,7 @@
  #include <sys/systm.h>
  #include <sys/errno.h>
 
+
 --- a/bsd/dev/sweet_spmi.c
 +++ b/bsd/dev/sweet_spmi.c
 @@ -5,7 +5,7 @@
@@ -33,6 +57,7 @@
  #include <sys/param.h>
  #include <sys/systm.h>
  #include <machine/machine_routines.h>
+
 
 --- a/bsd/dev/sweet_touch.c
 +++ b/bsd/dev/sweet_touch.c
@@ -46,6 +71,7 @@
  #include <sys/systm.h>
  #include <sys/errno.h>
 
+
 --- a/bsd/dev/sweet_ufs.c
 +++ b/bsd/dev/sweet_ufs.c
 @@ -18,7 +18,7 @@
@@ -58,6 +84,7 @@
  #include <sys/systm.h>
  #include <sys/buf.h>
 
+
 --- a/bsd/dev/sweet_usb.c
 +++ b/bsd/dev/sweet_usb.c
 @@ -10,7 +10,7 @@
@@ -69,6 +96,7 @@
  #include <sys/param.h>
  #include <sys/systm.h>
  #include <kern/clock.h>
+
 
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
@@ -91,6 +119,7 @@
  			 * SWEET has no chain of trust to extend: the kernel itself is
  			 * booted unsigned and there is no Image4/AMFI, and its HFS root
 
+
 --- a/bsd/kern/kern_core.c
 +++ b/bsd/kern/kern_core.c
 @@ -117,7 +117,7 @@
@@ -102,6 +131,7 @@
  /*
   * SWEET: off by default (sysctl kern.coredump=1 enables it). A crashing iOS
   * daemon maps the whole shared region, so one core is gigabytes on the root
+
 
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
@@ -115,6 +145,7 @@
  			printf("exec %s\n", p->p_name);
  #else
 
+
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
 @@ -1884,7 +1884,7 @@
@@ -127,6 +158,7 @@
  			extern void sweet_crash_log(const char *, int, int, uint64_t, uint64_t);
  			sweet_crash_log(p->p_comm, proc_getpid(p), WTERMSIG(rv),
 
+
 --- a/bsd/kern/kern_mib.c
 +++ b/bsd/kern/kern_mib.c
 @@ -518,7 +518,7 @@
@@ -138,6 +170,7 @@
  	/* SWEET: the macOS config runs the iOS userland, which wants the
  	 * device-tree names (hw.machine iPhone10,3, hw.model D22AP). */
  	/* The following two are kludged for backward
+
 
 --- a/bsd/kern/kern_trustcache.c
 +++ b/bsd/kern/kern_trustcache.c
@@ -196,6 +229,7 @@
  		return KERN_NOT_SUPPORTED;
  	}
 
+
 --- a/bsd/kern/sweet_amfi.c
 +++ b/bsd/kern/sweet_amfi.c
 @@ -22,7 +22,7 @@
@@ -207,6 +241,7 @@
  #include <kern/debug.h>
  #include <kern/startup.h>
  #include <libkern/amfi/amfi.h>
+
 
 --- a/bsd/kern/syscalls.master
 +++ b/bsd/kern/syscalls.master
@@ -220,6 +255,7 @@
  #else
  435     AUE_NULL        ALL     { int nosys(void); }
 
+
 --- a/bsd/net/rtsock.c
 +++ b/bsd/net/rtsock.c
 @@ -510,7 +510,7 @@
@@ -231,6 +267,7 @@
  	/* SWEET: which process changes IPv4 routes (network bring-up). */
  	if ((rtm->rtm_type == RTM_ADD || rtm->rtm_type == RTM_DELETE || rtm->rtm_type == RTM_CHANGE) &&
  	    info.rti_info[RTAX_DST] != NULL && info.rti_info[RTAX_DST]->sa_family == AF_INET) {
+
 
 --- a/bsd/netinet/in.c
 +++ b/bsd/netinet/in.c
@@ -244,6 +281,7 @@
  	if ((cmd == SIOCAIFADDR || cmd == SIOCDIFADDR) && ifp != NULL) {
  		static int sweet_in_logged;
 
+
 --- a/bsd/pthread/sweet_pthread_init.c
 +++ b/bsd/pthread/sweet_pthread_init.c
 @@ -1,5 +1,5 @@
@@ -253,6 +291,7 @@
  #include "sweet_pthread_compat.h"
  #include "sweet_libpthread/kern/kern_init.c"
  
+
 
 --- a/bsd/pthread/sweet_pthread_support.c
 +++ b/bsd/pthread/sweet_pthread_support.c
@@ -264,6 +303,7 @@
  #include "sweet_libpthread/kern/kern_support.c"
  #endif /* ARM64_BOARD_CONFIG_SWEET */
 
+
 --- a/bsd/pthread/sweet_pthread_synch.c
 +++ b/bsd/pthread/sweet_pthread_synch.c
 @@ -1,5 +1,5 @@
@@ -273,6 +313,7 @@
  #include "sweet_pthread_compat.h"
  #include "sweet_libpthread/kern/kern_synch.c"
  #endif /* ARM64_BOARD_CONFIG_SWEET */
+
 
 --- a/bsd/sweet_hfs/core/hfs_catalog.c
 +++ b/bsd/sweet_hfs/core/hfs_catalog.c
@@ -285,6 +326,7 @@
  /*
   * SWEET: hard links made by Linux tools lack kHFSHasLinkChainBit and every
   * lookup of them repairs (in memory) and reports it again; the console
+
 
 --- a/bsd/sweet_hfs/core/hfs_vfsutils.c
 +++ b/bsd/sweet_hfs/core/hfs_vfsutils.c
@@ -307,6 +349,7 @@
  #endif
  	}
 
+
 --- a/bsd/sys/pthread_internal.h
 +++ b/bsd/sys/pthread_internal.h
 @@ -34,7 +34,7 @@
@@ -318,6 +361,7 @@
  	/* libpthread-514.100.2 includes the trailing kwe_uth pointer. */
  	char opaque[56];
  #else
+
 
 --- a/bsd/vfs/kpi_vfs.c
 +++ b/bsd/vfs/kpi_vfs.c
@@ -331,6 +375,7 @@
  			 * SWEET: HFS has no RENAME_SWAP, which Foundation's atomic
  			 * writes use (usermanagerd: "Failed to atomically swap writing
 
+
 --- a/bsd/vfs/vfs_subr.c
 +++ b/bsd/vfs/vfs_subr.c
 @@ -1257,7 +1257,7 @@
@@ -343,6 +388,7 @@
  		 * SWEET has no data volume: /private/var lives on the root, so
  		 * boot-arg rootrw=1 mounts it read-write from the start.
 
+
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
 @@ -1755,7 +1755,7 @@
@@ -354,6 +400,7 @@
  /*
   * SWEET runs the iOS userland on the macOS config: SpringBoard calls
   * pid_hibernate when an app leaves the foreground, and nosys (SIGSYS)
+
 
 --- a/iokit/Kernel/IOService.cpp
 +++ b/iokit/Kernel/IOService.cpp
@@ -384,6 +431,7 @@
  	/*
  	 * SWEET has no IOStorageFamily, so no service can be a block storage
  	 * driver: the root (e.g. a RAM disk) is not block media, as for image boot.
+
 
 --- a/iokit/Kernel/IOUserClient.cpp
 +++ b/iokit/Kernel/IOUserClient.cpp
@@ -451,6 +499,7 @@
  			char sname[32];
  			if (sweet_iolog(sname, sizeof(sname))) {
 
+
 --- a/iokit/Kernel/arm/SweetBattery.cpp
 +++ b/iokit/Kernel/arm/SweetBattery.cpp
 @@ -4,7 +4,7 @@
@@ -462,6 +511,7 @@
  #include <device/device_types.h> /* io_buf_ptr_t for private OSKext headers */
  #include <IOKit/IOLib.h>
  #include <IOKit/IOWorkLoop.h>
+
 
 --- a/iokit/Kernel/arm/SweetCPU.cpp
 +++ b/iokit/Kernel/arm/SweetCPU.cpp
@@ -484,6 +534,7 @@
  	__builtin_arm_wsr64("ICC_SGI1R_EL1", sgi);
  	__builtin_arm_isb(ISB_SY);
 
+
 --- a/iokit/Kernel/arm/SweetEntitlements.cpp
 +++ b/iokit/Kernel/arm/SweetEntitlements.cpp
 @@ -10,7 +10,7 @@
@@ -495,6 +546,7 @@
  #include <IOKit/IOLib.h>
  #include <libkern/c++/OSArray.h>
  #include <libkern/c++/OSBoolean.h>
+
 
 --- a/iokit/Kernel/arm/SweetFramebuffer.cpp
 +++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
@@ -508,6 +560,7 @@
  #include <IOKit/IOUserClient.h>
  #include <IOKit/IOKitKeys.h>
 
+
 --- a/iokit/Kernel/arm/SweetKeyStore.cpp
 +++ b/iokit/Kernel/arm/SweetKeyStore.cpp
 @@ -16,7 +16,7 @@
@@ -519,6 +572,7 @@
  #include <IOKit/IOService.h>
  #include <IOKit/IOUserClient.h>
  #include <IOKit/IOKitKeys.h>
+
 
 --- a/iokit/Kernel/arm/SweetPlatformExpert.cpp
 +++ b/iokit/Kernel/arm/SweetPlatformExpert.cpp
@@ -532,6 +586,7 @@
  #include <IOKit/IODeviceTreeSupport.h>
  #include <IOKit/IOLib.h>
 
+
 --- a/iokit/Kernel/arm/SweetSurface.cpp
 +++ b/iokit/Kernel/arm/SweetSurface.cpp
 @@ -27,7 +27,7 @@
@@ -543,6 +598,7 @@
  #include <IOKit/IOService.h>
  #include <IOKit/IOUserClient.h>
  #include <IOKit/IOKitKeys.h>
+
 
 --- a/iokit/Kernel/arm/SweetSurface.h
 +++ b/iokit/Kernel/arm/SweetSurface.h
@@ -556,6 +612,7 @@
  #include <IOKit/IOBufferMemoryDescriptor.h>
  #include <libkern/c++/OSObject.h>
 
+
 --- a/iokit/Kernel/arm/SweetWatchdog.cpp
 +++ b/iokit/Kernel/arm/SweetWatchdog.cpp
 @@ -16,7 +16,7 @@
@@ -567,6 +624,7 @@
  #include <IOKit/IOService.h>
  #include <IOKit/IOUserClient.h>
  #include <IOKit/IOKitKeys.h>
+
 
 --- a/iokit/KernelConfigTables.cpp
 +++ b/iokit/KernelConfigTables.cpp
@@ -580,6 +638,7 @@
      "     'IOClass'         = SweetPlatformExpert;"
      "     'IOProviderClass' = IOPlatformExpertDevice;"
 
+
 --- a/iokit/bsddev/IOKitBSDInit.cpp
 +++ b/iokit/bsddev/IOKitBSDInit.cpp
 @@ -766,7 +766,7 @@
@@ -591,6 +650,7 @@
  //
  //	SWEET: root on a GPT partition of the internal UFS (bsd/dev/sweet_ufs.c)
  //
+
 
 --- a/libkern/crypto/corecrypto_aes.c
 +++ b/libkern/crypto/corecrypto_aes.c
@@ -604,6 +664,7 @@
  extern const struct ccmode_cbc sweet_aes_cbc_encrypt;
  extern const struct ccmode_cbc sweet_aes_cbc_decrypt;
 
+
 --- a/libkern/crypto/corecrypto_md5.c
 +++ b/libkern/crypto/corecrypto_md5.c
 @@ -17,7 +17,7 @@
@@ -616,6 +677,7 @@
   * SWEET has no corecrypto kext (g_crypto_funcs stays NULL). MD5 uses
   * BearSSL's portable implementation (libkern/crypto/sweet_md5.c), with
 
+
 --- a/libkern/crypto/corecrypto_sha1.c
 +++ b/libkern/crypto/corecrypto_sha1.c
 @@ -16,7 +16,7 @@
@@ -627,6 +689,7 @@
  /*
   * SWEET has no corecrypto kext (g_crypto_funcs stays NULL). SHA-1 uses
   * BearSSL's portable implementation (libkern/crypto/sweet_sha1.c), with
+
 
 --- a/libkern/crypto/corecrypto_sha2.c
 +++ b/libkern/crypto/corecrypto_sha2.c
@@ -649,6 +712,7 @@
  
  _Static_assert(sizeof(br_sha384_context) <= sizeof(SHA512_CTX),
 
+
 --- a/libkern/crypto/sweet_aes.c
 +++ b/libkern/crypto/sweet_aes.c
 @@ -4,7 +4,7 @@
@@ -661,6 +725,7 @@
  #include <libkern/crypto/aes.h>
  #include <corecrypto/ccmode.h>
 
+
 --- a/libkern/crypto/sweet_aes_ct.c
 +++ b/libkern/crypto/sweet_aes_ct.c
 @@ -1,4 +1,4 @@
@@ -669,6 +734,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/symcipher/aes_ct.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_aes_ct_cbcdec.c
 +++ b/libkern/crypto/sweet_aes_ct_cbcdec.c
@@ -679,6 +745,7 @@
  #include "sweet_bearssl/src/symcipher/aes_ct_cbcdec.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_aes_ct_cbcenc.c
 +++ b/libkern/crypto/sweet_aes_ct_cbcenc.c
 @@ -1,4 +1,4 @@
@@ -687,6 +754,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/symcipher/aes_ct_cbcenc.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_aes_ct_dec.c
 +++ b/libkern/crypto/sweet_aes_ct_dec.c
@@ -697,6 +765,7 @@
  #include "sweet_bearssl/src/symcipher/aes_ct_dec.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_aes_ct_enc.c
 +++ b/libkern/crypto/sweet_aes_ct_enc.c
 @@ -1,4 +1,4 @@
@@ -705,6 +774,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/symcipher/aes_ct_enc.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_dec32be.c
 +++ b/libkern/crypto/sweet_dec32be.c
@@ -715,6 +785,7 @@
  #include "sweet_bearssl/src/codec/dec32be.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_dec32le.c
 +++ b/libkern/crypto/sweet_dec32le.c
 @@ -1,4 +1,4 @@
@@ -723,6 +794,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/codec/dec32le.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_dec64be.c
 +++ b/libkern/crypto/sweet_dec64be.c
@@ -733,6 +805,7 @@
  #include "sweet_bearssl/src/codec/dec64be.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_enc32be.c
 +++ b/libkern/crypto/sweet_enc32be.c
 @@ -1,4 +1,4 @@
@@ -741,6 +814,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/codec/enc32be.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_enc32le.c
 +++ b/libkern/crypto/sweet_enc32le.c
@@ -751,6 +825,7 @@
  #include "sweet_bearssl/src/codec/enc32le.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_enc64be.c
 +++ b/libkern/crypto/sweet_enc64be.c
 @@ -1,4 +1,4 @@
@@ -759,6 +834,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/codec/enc64be.c"
  #endif
+
 
 --- a/libkern/crypto/sweet_md5.c
 +++ b/libkern/crypto/sweet_md5.c
@@ -769,6 +845,7 @@
  #include "sweet_bearssl/src/hash/md5.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_sha1.c
 +++ b/libkern/crypto/sweet_sha1.c
 @@ -1,4 +1,4 @@
@@ -778,6 +855,7 @@
  #include "sweet_bearssl/src/hash/sha1.c"
  #endif
 
+
 --- a/libkern/crypto/sweet_sha2big.c
 +++ b/libkern/crypto/sweet_sha2big.c
 @@ -1,4 +1,4 @@
@@ -786,6 +864,7 @@
 +#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_LISA)
  #include "sweet_bearssl/src/hash/sha2big.c"
  #endif
+
 
 --- a/makedefs/MakeInc.def
 +++ b/makedefs/MakeInc.def
@@ -823,6 +902,7 @@
  endif
  
 
+
 --- a/osfmk/arm64/arm_vm_init.c
 +++ b/osfmk/arm64/arm_vm_init.c
 @@ -1825,7 +1825,7 @@
@@ -853,6 +933,7 @@
  	sweet_early_relocate(SWEET_EARLY_FB_VA);
  #endif
 
+
 --- a/osfmk/arm64/cpu.c
 +++ b/osfmk/arm64/cpu.c
 @@ -922,7 +922,7 @@
@@ -873,6 +954,7 @@
  /* Bring-up observer: the self-SGI clears SIGPdisabled after IRQs unmask. */
  boolean_t sweet_cpu_signal_is_enabled(unsigned int cpu);
  boolean_t
+
 
 --- a/osfmk/arm64/machine_routines.c
 +++ b/osfmk/arm64/machine_routines.c
@@ -904,6 +986,20 @@
   * sweet: arm_vm_init() calls this unconditionally; Apple's definition (it
   * enters the PPL/monitor) ships only in the closed per-SoC library. There is
 
+
+--- a/osfmk/arm64/proc_reg.h
++++ b/osfmk/arm64/proc_reg.h
+@@ -213,7 +213,7 @@
+ /* D-Cache. */
+ #define MMU_CLINE   6
+ 
+-#elif defined (SWEET) /* Qualcomm Kryo 470: Cortex-A76 + Cortex-A55 */
++#elif defined (QCOM) /* Qualcomm Kryo units: Cortex-A76/A78 + Cortex-A55 */
+ 
+ /* I-Cache. */
+ #define MMU_I_CLINE 6
+
+
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
 @@ -1856,7 +1856,7 @@
@@ -915,6 +1011,7 @@
  	/*
  	 * sweet: TrustZone owns GIC Group 0, so the timer and IPIs that other
  	 * ARM64 targets take as FIQs arrive here as Group 1 IRQs.
+
 
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
@@ -973,6 +1070,7 @@
  	cmp		x0, x1
  	bne		.
 
+
 --- a/osfmk/arm64/sweet_early.c
 +++ b/osfmk/arm64/sweet_early.c
 @@ -7,7 +7,7 @@
@@ -985,6 +1083,7 @@
  #include <kern/misc_protos.h>
  
 
+
 --- a/osfmk/arm64/sweet_early.h
 +++ b/osfmk/arm64/sweet_early.h
 @@ -6,7 +6,7 @@
@@ -996,6 +1095,7 @@
  void sweet_early_mark(unsigned int stage, const char *label);
  void sweet_early_putc(char c);
  void sweet_early_panic(const char *fmt, va_list *args);
+
 
 --- a/osfmk/console/serial_console.c
 +++ b/osfmk/console/serial_console.c
@@ -1018,6 +1118,7 @@
  	if (sweet_console_muted && !panic_active()) {
  		return;
 
+
 --- a/osfmk/kern/debug.c
 +++ b/osfmk/kern/debug.c
 @@ -1072,7 +1072,7 @@
@@ -1030,6 +1131,7 @@
  	sweet_early_panic(panic_format_str, panic_args);
  #endif
 
+
 --- a/osfmk/kern/exception.c
 +++ b/osfmk/kern/exception.c
 @@ -820,7 +820,7 @@
@@ -1041,6 +1143,7 @@
  #include <vm/vm_shared_region.h>
  #include <arm/thread.h>
  
+
 
 --- a/osfmk/prng/entropy.c
 +++ b/osfmk/prng/entropy.c
@@ -1099,6 +1202,7 @@
  		return sample_count;
  	}
 
+
 --- a/osfmk/prng/prng_random.c
 +++ b/osfmk/prng/prng_random.c
 @@ -145,7 +145,7 @@
@@ -1119,6 +1223,7 @@
  	/* Hash without depending on the absent corecrypto kext's dispatch table. */
  	const struct ccdigest_info *di = &ccsha256_ltc_di;
  	ccdigest_di_decl(di, ctx);
+
 
 --- a/osfmk/vm/vm_kern.c
 +++ b/osfmk/vm/vm_kern.c
@@ -1158,6 +1263,7 @@
  		slot_idx = sweet_kmem_uniform(zpercpu_get(sizeclass.ks_rng_ctx), num_slots);
  #else
  		crypto_random_uniform(zpercpu_get(sizeclass.ks_rng_ctx), num_slots,
+
 
 --- a/pexpert/arm/pe_fiq.c
 +++ b/pexpert/arm/pe_fiq.c
@@ -1219,6 +1325,7 @@
  	uint32_t gicd_ctlr = gicd_read32(GICD_CTLR);
  	gicd_ctlr |= GICD_CTLR_ARE_NS | GICD_CTLR_ENABLEGRP1A | GICD_CTLR_ENABLEGRP1;
 
+
 --- a/pexpert/pexpert/arm/protos.h
 +++ b/pexpert/pexpert/arm/protos.h
 @@ -36,7 +36,7 @@
@@ -1230,6 +1337,7 @@
  extern uint32_t sweet_vtimer_intid;
  #endif
  
+
 
 --- a/pexpert/pexpert/arm64/Makefile
 +++ b/pexpert/pexpert/arm64/Makefile
@@ -1244,6 +1352,7 @@
  
  
  # Headers installed into System.framework/PrivateHeaders (userspace internal SDK only).
+
 
 --- a/pexpert/pexpert/arm64/SWEET.h
 +++ b/pexpert/pexpert/arm64/SWEET.h
@@ -1337,6 +1446,7 @@
 -
  #endif /* ! _PEXPERT_ARM64_SWEET_H */
 
+
 --- a/pexpert/pexpert/arm64/board_config.h
 +++ b/pexpert/pexpert/arm64/board_config.h
 @@ -108,6 +108,17 @@
@@ -1357,6 +1467,7 @@
  #ifdef ARM64_BOARD_CONFIG_VMAPPLE
  #include <pexpert/arm64/VMAPPLE.h>
  
+
 
 --- /dev/null
 +++ b/config/MASTER.arm64.lisa
@@ -1477,6 +1588,7 @@
 +options   CONFIG_RESLIDE_SHARED_CACHE		# <reslide_shared_cache>
 +options   CONFIG_KERNEL_TBI		# <kernel_tbi>
 
+
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/LISA.h
 @@ -0,0 +1,17 @@
@@ -1497,6 +1609,7 @@
 +#include <pexpert/arm64/QCOM.h>
 +
 +#endif /* ! _PEXPERT_ARM64_LISA_H */
+
 
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/QCOM.h
@@ -1584,3 +1697,4 @@
 +/* End of GICv3 register definitions */
 +
 +#endif /* ! _PEXPERT_ARM64_QCOM_H */
+
