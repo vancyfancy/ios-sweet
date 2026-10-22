@@ -374,6 +374,11 @@ void shim_main(uint64_t dtb)
 {
 	struct mmu_info mi;
 
+	/* What only the bootloader could know, before anything paints: the
+	 * continued-splash framebuffer the console should use and the DRAM
+	 * banks the loader reconciles the payload's map against. */
+	loader_probe(dtb);
+
 	/* An xnu payload in the ramdisk means: boot it (MMU stays off). */
 	stage = "loader";
 	con_clear(RED);
