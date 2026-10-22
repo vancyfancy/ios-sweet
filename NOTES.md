@@ -126,6 +126,11 @@ first).** Observations/notes that matter for the post-revival boot:
   0x1000 each, LUT at +0x100 word/row [31:30]=src [7:0]=×19.2 MHz, PERF_STATE
   at +0x320 write row idx; alternate src = 300 MHz). One write/domain maxes the
   cluster — candidate 0085/0086 (file + Makefile `optional` hunk like sweet drivers).
+- 16:55–17:56: auto-cycler saw **zero** fastboot sightings (log has only its
+  start line) — phone continuously off-USB for ~2 h as of 17:56. Tool-level
+  60 min timeout killed the first cycler at 17:56; **re-armed same script with
+  no timeout** (notification resumes on first sighting / stop condition).
+
 
 
 ### >>> UPDATE 2026-10-22 EVENING: LISA live bring-up — shim XPU wall broken, LISA KERNEL BOOTS AND RUNS <<<
