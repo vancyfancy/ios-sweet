@@ -1296,3 +1296,39 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   inspect the read-only QUP wrapper/GCC register dump through a RAM-only boot.
   Do not run the experiment if CI patch application/build fails. Phone and
   partitions remain as recorded above; no persistent changes were made.
+
+### 2026-10-23 wrapper-register run result
+- Commit `1760026` restores the complete patch from known-good `1e0caeb` and
+  adds read-only reads for QUP wrapper1 (`0xac0000..0xac005c`) and GCC enable
+  banks `0x52010/0x52014`. The regenerated patch applies cleanly to pinned
+  HackiOS v0.1.0; the GCC hunk header is `@@ -307,7 +326,27 @@` (base new-side
+  count 21 plus six added lines). CI run `39890457655` succeeded.
+- Artifact `_lisa/ci-kernel-touch-wrapper/mach.development.lisa` SHA-256
+  `bad1f4a157f1fc6feafdd54a12b67126a2da8f1d2ffdcdc1ab99efdaaebd3810`;
+  payload `_lisa/boot-images/payload-lisa-touch-wrapper.bin` SHA-256
+  `2e98c64c6f0892a3ec79564a5762b6436db0648bd74dc7bffb9c6db4e27c5265`.
+- First two log pulls were loader-only because `fastboot oem log` was issued
+  after XNU returned; on an already-returned kernel that command replaces the
+  staged run log with a loader-only snapshot. Corrected the capture method:
+  `getvar result` then `get_staged` directly, without `oem log`.
+- Correct capture is `_lisa/logs/goodix-wrapper-registers-final.log` (28,964 B;
+  binary-containing; sanitized text copy `/tmp/wrapper-log.txt`). XNU reached
+  `redwood_goodix_init` and started its worker, but panicked before the
+  worker's five-second delay/clock probe: `Process 1 exec of /sbin/launchd
+  failed, errno 2 @kern_exec.c:7154`. Thus no wrapper/GCC dump and no new
+  touch-clock observation was collected. This does not implicate the added
+  wrapper reads because the clock diagnostic code had not run yet. Previous
+  known state remains S-AHB `0x8000000a` with other QUP branches not halted.
+- A repeated run reproduced the same ~28 KB return; the first two runs' useful
+  kernel logs were discarded by the `oem log` mistake. The successfully
+  captured run was RAM-only and XNU returned to `xnuloader`; current fastboot
+  product is `xnuloader`, result `returned 27945 0`. No partitions or firmware
+  were touched.
+- Next agent: first investigate why `/sbin/launchd` is missing/unexecable in
+  this RAM boot (APFS root image hash
+  `5122f0358a248bda09670273ee87df416ef70f96f0c5640b0393c79ceacea75a`; XNU
+  log says APFS volume `redwood`, 59 files, 17 directories). Compare with the
+  previous successful RAM boot logs/payload recipe. Once the system reliably
+  gets beyond init, repeat wrapper dump and fetch staged logs directly after
+  `getvar result`, with no `oem log` call. Do not treat missing dump records as
+  clock values.
