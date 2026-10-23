@@ -1094,3 +1094,22 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
      cpu_init, before arm_vm_init.
   5. panic hook at top of panic_trap_to_debugger: va_copy + _doprnt(fmt, &copy, sweet_early_putc, 16).
   Verify with tools/xnu-cc.py (compile+symbols) and patch-order simulation before the single CI run.
+
+### 2026-10-23 direct loader trace build
+- Commit `2b5d8da` routes the Goodix initializer/call-site and worker diagnostic
+  checkpoints through `redwood_tl()` → `loader_log_line()`, and records the
+  `bring_up()` result. Patch syntax/apply check passed against a clean archive
+  of the pinned HackiOS kernel before commit.
+- CI run `39882202780` for `2b5d8da` is in progress; source checkout and
+  `lisa-goodix.patch` application succeeded, Theos/SDK installation succeeded,
+  XNU dependency preparation is currently running. Build/artifact and hardware
+  results are pending.
+- Phone last observed at iOS home screen from the prior RAM-only kernel,
+  loader result `running 0 0`. The current kernel has not yet been staged.
+  No partitions were erased or written.
+- User again authorized broad partition wiping and prioritized working touch,
+  while explicitly saying not to brick the phone. Under the project rule to
+  confirm each destructive step, plus absence of a verified live partition
+  backup and recovery path, no erase/write is authorized or planned yet.
+  Preserve stock boot slots and critical partitions; persist iOS autoboot is
+  deferred pending a safe, exact boot-path proposal and explicit step approval.
