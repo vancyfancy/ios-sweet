@@ -1225,3 +1225,52 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   require confirmation for each exact destructive step. Preserve bootloaders,
   recovery, modem, persist, and backups; no GPT changes; approved future iOS
   root location is existing `userdata` only.
+
+### 2026-10-23 continuation (lisa S-AHB hunt: ground truth collected)
+- Codex's pending CI `39886581228` (fb43b83) finished green. Artifact downloaded to
+  `_lisa/ci-kernel-touch-pins/` (kernel sha `738cf8885ae923e…151ca`; 15,161,096 B).
+  Payload baked with proven recipe (kernel + 4 MiB root.apfs + quiet args
+  `loader_return_after=900 epoch=<now> sb_delay=8 touchscreen=1 touch_lisa=1
+  touch_debug=1 cpus=8 bootcpu=7 cpufreq=1`): `payload-lisa-touch-pins.bin`
+  19,355,640 B sha `c684799dac5aa9…2da4fdad`. Phone was still in `xnuloader`;
+  `oem stop`, stage, `oem run` = `running 0 0`. Full short GPIO/clock trace captured:
+  `_lisa/logs/goodix-pins.log` (see below for the parse).
+- Trace parse (numbers now CONFIRMED, not truncated):
+  worker alive; TLMM/GCC/SE 0xa94000/RSC/cmd-DB maps OK; "as found" M-AHB CBCR 0x0,
+  S-AHB CBCR `0x8000000a`, SE5 CBCR + core_2x(0x23140)/core(0x23138) all `0x4220`,
+  vote reg 0x52008 = `0x083c8bc0` with bits 18/19/20/21/27 ALL already set
+  (= core2x/core/M-AHB/S-AHB/SE5 per upstream gcc-sc7280 mapping: enable_reg=0x52008,
+  masks BIT18/19/20/21/27; halt regs 0x23140/23138/0x18004/0x18008/0x185fc).
+  power-on (RPMh ldoc2+ldoc7) succeeded; S-AHB retrigger (clear→set bit21) no
+  effect; clocks_on=0 → SE probe skipped → bitbang (both polarities, in=52 out=53
+  and reversed) probe=0; bring-up result 0. So ONLY S-AHB stays OFF;
+  M-AHB/SE5/core/core2x read as not-halted (no bit31).
+- Wiring re-verified in lisa merged DTS (against redwood hardcodes): same engine
+  spi@a94000 (SE13=wrap1 S5), SAME pins MISO52/MOSI53/CLK54/CS55/INT81/RESET105;
+  iovdd = phandle 0x2fa = pm8350c_l2 (1.6–2.0 V) ✓, avdd = 0x2ff = pm8350c_l7
+  (3.0–3.54 V) ✓ — patch's rpmh ldoc2/ldoc7 mapping is CORRECT. SE13 node has NO
+  `resets` and NO `power-domains` — Linux brings it up with only those three
+  clocks (`<0x28 0x60/0x68/0x69>` = SE + M_AHB + S_AHB clock ids 96/104/105).
+- Vendor source cloned for ground truth (sparse, commit 57ee2b06, branch
+  lisa-r-oss): MiCode/Xiaomi_Kernel_OpenSource → /tmp/opencode/lisa-kernel
+  (drivers/clk/qcom + dt-bindings). lisa SoC = yupik: `gcc-yupik.c` defines
+  gcc_qupv3_wrap_1_s_ahb_clk EXACTLY as upstream sc7280 (0x52008 BIT21,
+  BRANCH_HALT_VOTED, hwcg bit1 @0x18008). No GDSC, no wrapper BCR for QUPV3 in
+  gcc-yupik.c/sc7280.c reset lists. So driver sequence = formally identical to
+  MIUI's; the remaining unknown = why firmware boot state differs.
+- Android-side register reads are NOT possible on this MIUI build: no /dev/mem
+  (toybox devmem exists, fails), no /sys/kernel/debug (debugfs off). Healthy-state
+  register ground truth therefore unavailable from MIUI directly.
+- Working hypotheses for the halted S-AHB (guesses, unproven):
+  1. firmware/UEFI boot-state difference vs redwood (same SoC!): their chain works
+     on redwood hardware with the same code; lisa boots via our M5-built
+     lisa UEFI/BootShim — something in that chain (or lisa XBL state) leaves/blocks
+     S-AHB; 2. a second enable-bank register (e.g. 0x5200c) or a branch-CBCR
+  write semantics difference (CBCR bit layout not fully decoded on this GCC);
+  3. the poll timeout too short (unlikely — value never changes). NEXT step
+  planned: one printf-only read-only diagnostic patch dumping GCC 0x18000–0x18030
+  (all wrap1 AHB-adjacent CBCRs incl. s0-s7 sibling branches), 0x5200c (second
+  enable bank), and GCC 0x03000–0x03100 engine/status area, to calibrate bit
+  semantics + catch a missed enable bank. Nothing has been written or flashed;
+  every experiment remains RAM-only; the iOS run was ended via `oem reboot`
+  back to Android for these read-only checks.
