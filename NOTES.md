@@ -1059,6 +1059,21 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   action was tested on this run.
 - Current call-site trace run is still active in RAM, with no `-v`; no phone
   partition or firmware was written.
+- Commit `c3accbb` added a five-second debug-only delay before the Goodix
+  worker's first trace message, to distinguish an early log-capture gap from
+  a worker that never starts. CI run `39880756288` succeeded; kernel SHA-256
+  `72c331b623a4af50b599ff7e4b33c4e1d873cdf4127a64f442aa874ead39ff16` is
+  downloaded under `_lisa/ci-kernel-touch-delayed/`.
+- The follow-up device run could not start: fastboot waited for a device, and
+  both `fastboot devices` and `adb devices` returned empty. No flash command
+  was issued. Hardware result for the delayed worker trace is pending device
+  reconnection; device state is unknown.
+- Autoboot research remains incomplete: this checkout has the lisa OTA/DTBs
+  but no lisa GPT backup or recorded current partition table. Must reconnect to
+  stock fastboot and collect read-only partition/slot data, then verify an
+  image backup and recovery path before proposing any boot-partition write.
+  Do not apply the historical SWEET GPT plan to lisa; lisa's approved plan is
+  to use existing userdata without GPT changes.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt
