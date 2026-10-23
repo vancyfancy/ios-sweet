@@ -952,6 +952,24 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   resident loader with `touchscreen=1 touch_lisa=1`. After boot, check the log
   for Goodix version/IC info and report counts before asking for tap validation.
 
+### 2026-10-23 continuation: lisa touch CI toolchain diagnostics
+- Commit `f4f5c1f` replaced Theos `install-sdk 16.5` (which reports that the SDK
+  is unavailable) with the verified official `theos/sdks` release asset
+  `master-146e41f/iPhoneOS16.5.sdk.tar.xz`. Run `39875971445` confirmed this
+  step succeeds and stage 1 completes.
+- Run `39875971445` then stopped in `xnu-deps/setup.sh --stage2`, before kernel
+  compilation. Commit `d75a3d9` made CI print the otherwise-hidden
+  `xnu-deps/exporthdrs.log`. Run `39876227453` identified the exact blocker:
+  host setup compilation cannot find `uuid/uuid.h` (`hostcompat.h:44`).
+- CI now installs Ubuntu's `uuid-dev` package before exporting headers. This
+  is a build-environment fix; no kernel artifact or hardware validation yet.
+  Next: check the new CI run, fix any further dependency/build errors, retrieve
+  and hash the kernel artifact, then do a RAM-only loader boot when the user is
+  ready. Phone was connected to Android via ADB on 2026-10-23; no reboot or
+  partition write was performed. Persistent autoboot remains unimplemented and
+  requires a verified safe boot path and the per-step destructive confirmation
+  required above.
+
 
 ## Status 2026-10-14 late: first XNU boot attempt
 - SWEET kernel builds (CI run 38635343732, patches 0001-0009). Verified offline: arm64, no PAC, no >v8.2 code,

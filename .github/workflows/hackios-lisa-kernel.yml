@@ -29,7 +29,7 @@ jobs:
           THEOS: ${{ runner.temp }}/theos
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash curl sudo
+          sudo apt-get install -y bash curl sudo uuid-dev
           curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos -o "$RUNNER_TEMP/install-theos"
           bash "$RUNNER_TEMP/install-theos"
           mkdir -p "$THEOS/sdks"
