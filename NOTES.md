@@ -1022,10 +1022,28 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
 - Debug build CI `39878319368` succeeded (kernel SHA-256
   `b1494997e1ca636c4fd6c8244f7e5950ee8b1e0494babca2fb29e78a66f4b883`). The
   phone ran it with `touch_debug=1`, but the captured loader log still had no
-  `goodix:` lines; XNU did log the full command line. This leaves two concrete
-  possibilities: the initializer is not being called, or the touchscreen arg
-  parser is returning false. The patch now prints an unconditional initializer
-  marker and parsed arg value, so the next run distinguishes those cases.
+  `goodix:` lines; XNU did log the full command line. The patch added an
+  unconditional initializer marker so the next run could locate the missing
+  call path.
+- CI run `39878753976` succeeded on commit `9ea1ef7`; kernel SHA-256
+  `9c88372c4ed8d95bb5ba5ded249d0fee97cc58311e46e950bfcb08dcade0d626`.
+  It was RAM-booted with `touchscreen=1 touch_lisa=1 touch_debug=1` and without
+  `-v`; XNU reached the home screen and `fastboot getvar result` reported
+  `running 0 0`. `cmdline` in the loader log confirms the three touch args.
+- Observation: no `goodix:` initializer or worker messages appear. The same
+  kernel log does show button-driver initialization (including the PMIC arbiter
+  and GPIO reads), while SpringBoard and backboardd reach the home screen. The
+  initializer message is present in the kernel binary, so the absent message
+  is now evidence of a driver call/build wiring issue rather than a failed
+  Goodix SPI probe. Exact cause remains unknown; next add markers around the
+  `redwood_goodix_init()` call in `redwood_input_init()` and rebuild.
+- Current home-screen screenshot, captured with verbose mode off, is
+  `_lisa/logs/touch-inittrace-current.png`; its raw framebuffer and full loader
+  log are in the ignored `_lisa/logs/` directory. No touch event was tested on
+  this specific run. The run is still RAM-only; no partition was written.
+- Persistent autoboot remains unimplemented pending partition-map/backup and
+  recovery review plus confirmation of the exact destructive write. Android,
+  bootloaders, recovery, modem, persist, and backups remain untouched.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt
