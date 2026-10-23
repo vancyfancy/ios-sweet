@@ -1361,3 +1361,30 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   inspect/build the separate lisa UEFI workflow and validate its image via
   RAM-only boot (capture the screen/state); installation requires Windows
   partitions and destructive partition-layout changes.
+
+### 2026-10-23 HackiOS touch: resident image restored; Berlin-A framing found
+- Re-entered `xnuloader` with the saved lisa entry image (first attempt did not
+  enumerate; second attempt succeeded). The previous wrapper trace had no
+  resident APFS image, so `/sbin/launchd` failed before the hardware probe.
+  Uploaded `_lisa/reference/hackios-xnu-kernel/userland/system.apfs` (about
+  2.4 GB) to loader RAM, then ran the wrapper payload. This was RAM-only; no
+  partitions or persistent firmware were touched.
+- Resident image was present (`pa fc000000`, size `0x948c4000`) and iOS
+  userspace reached SpringBoard. The touch worker enabled supplies and
+  attempted SPI. QUP1 S-AHB stayed halted (`0x8000000a`) despite vote
+  `0x83c8bc0`; SE5's halt bit cleared and the driver fell back to GPIO SPI.
+  The probe's response contained the `9897T` identifier, but failed the
+  firmware-version checksum; no touch device was registered. Final kernel
+  result was `returned 256070 0`.
+- Root cause found in the device/chip match: lisa's DTS identifies GT9897T
+  (Goodix Berlin-A), while the Redwood driver implements GT9916/Berlin-D
+  reads. Goodix's Linux SPI driver specifies four dummy bytes for GT9897 and
+  three for GT9916. The lisa path now reads with a 9-byte prefix; Redwood
+  keeps its 8-byte prefix. The existing wrapper/GCC diagnostic patch is
+  preserved.
+- Regenerated `hackios/patches/lisa-goodix.patch` from the known-good base
+  plus the Berlin-A framing change. `git apply --check`, patch application,
+  and `git diff --check` all passed in a fresh temporary source tree. Not yet
+  built or booted. Next: commit/push, watch the kernel CI run, then rerun with
+  the resident APFS image and check version/IC-info probe before moving on to
+  the remaining S-AHB clock and runtime touch-report path.
