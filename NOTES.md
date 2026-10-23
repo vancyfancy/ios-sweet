@@ -1113,3 +1113,31 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   backup and recovery path, no erase/write is authorized or planned yet.
   Preserve stock boot slots and critical partitions; persist iOS autoboot is
   deferred pending a safe, exact boot-path proposal and explicit step approval.
+
+### 2026-10-23 Goodix clock failure isolated
+- CI run `39883183657` succeeded for commit `245eafc`; the kernel artifact was
+  RAM-booted. Its added printf-only hardware checkpoints were not retained in
+  the loader's captured log, so no hardware stage conclusion was drawn from that
+  run.
+- CI run `39883782104` succeeded for commit `fdce392`; kernel SHA-256
+  `93c818f27543307c4633ff634c16f686d5c63a772135060fa8fa6adaadf97cce`.
+  RAM-only boot result: `running 0 0`, iOS services reached the lock/home UI.
+  Direct loader trace observed Goodix init and worker start; `power-on
+  succeeded`; `clocks_on=0`; engine reason `its clocks cannot be turned on`;
+  bitbang attempts with GPIO52 input/GPIO53 output and the reverse both probed
+  false; final hardware bring-up result `0`. This localizes the failure to
+  QUP/SE clock setup before the SPI hardware probe. It does not prove that
+  supplies are electrically correct or that the chip is responsive.
+- Read-only lisa DTS observation: SE13 SPI is at `0xa94000`, clock IDs are
+  `<0x28 0x60 0x28 0x68 0x28 0x69>`, and it is enabled in the DTS. The current
+  Goodix port maps SE13 to GCC wrapper1 SE5 and votes bits 18,19,20,21,27.
+  Whether those register offsets and vote bits match lisa's GCC is not yet
+  verified against live register values.
+- Added direct `redwood_tl()` snapshots of GCC vote/DFS/config/command/CBCR
+  registers before voting, after voting, and on clock timeout. This diagnostic
+  patch applies cleanly against the pinned upstream tree. CI and hardware
+  result are pending.
+- The phone remains on a RAM-only loader/kernel path. No partition, firmware,
+  boot slot, or GPT write/erase was issued. Persistent autoboot stays deferred
+  under the per-step destructive-action confirmation rule and absent verified
+  backup/recovery path.

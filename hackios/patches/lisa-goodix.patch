@@ -1,5 +1,5 @@
 diff --git a/xnu/files/bsd/dev/redwood_goodix.c b/xnu/files/bsd/dev/redwood_goodix.c
-index f969cbd..15db80a 100644
+index f969cbd..f5acae2 100644
 --- a/xnu/files/bsd/dev/redwood_goodix.c
 +++ b/xnu/files/bsd/dev/redwood_goodix.c
 @@ -43,6 +43,7 @@ extern vm_offset_t ml_io_map_wcomb(vm_offset_t phys_addr, vm_size_t size);
@@ -77,7 +77,31 @@ index f969cbd..15db80a 100644
  }
  
  /* ---- clocks (GCC) -------------------------------------------------------------------------------- */
-@@ -1303,6 +1322,10 @@ static enum touch_chip touch_chip;
+@@ -307,6 +326,7 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
+ static bool
+ clocks_on(void)
+ {
++	if (touch_debug) redwood_tl("goodix trace: GCC pre-vote vote=%#x DFS=%#x cfg=%#x cmd=%#x CBCR=%#x/%#x/%#x\n", rd(GCC_VOTE), rd(GCC_QUP1_SE5_DFSR), rd(GCC_QUP1_SE5_CFG), rd(GCC_QUP1_SE5_CMD), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR), rd(GCC_QUP1_SE5_CBCR));
+ 	wr(GCC_VOTE, rd(GCC_VOTE) | VOTE_QUP1_CORE_2X | VOTE_QUP1_CORE | VOTE_QUP1_M_AHB | VOTE_QUP1_S_AHB);
+ 	if (rd(GCC_QUP1_SE5_DFSR) & 1) {
+ 		/* preset rates: the lowest that is at least 4 MHz */
+@@ -338,6 +358,7 @@ clocks_on(void)
+ 		se_clock_select = 0;
+ 	}
+ 	wr(GCC_VOTE, rd(GCC_VOTE) | VOTE_QUP1_SE5);
++	if (touch_debug) redwood_tl("goodix trace: GCC post-vote vote=%#x cfg=%#x cmd=%#x CBCR=%#x/%#x/%#x\n", rd(GCC_VOTE), rd(GCC_QUP1_SE5_CFG), rd(GCC_QUP1_SE5_CMD), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR), rd(GCC_QUP1_SE5_CBCR));
+ 	for (int i = 0; i < 1000; i++) {
+ 		if (!((rd(GCC_QUP1_M_AHB_CBCR) | rd(GCC_QUP1_S_AHB_CBCR) | rd(GCC_QUP1_SE5_CBCR)) & CLOCK_OFF)) {
+ 			return true;
+@@ -346,6 +367,7 @@ clocks_on(void)
+ 	}
+ 	printf("goodix: clocks stay off: %#x %#x %#x\n", rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR),
+ 	    rd(GCC_QUP1_SE5_CBCR));
++	if (touch_debug) redwood_tl("goodix trace: GCC timeout vote=%#x CFG=%#x CMD=%#x CBCR=%#x/%#x/%#x\n", rd(GCC_VOTE), rd(GCC_QUP1_SE5_CFG), rd(GCC_QUP1_SE5_CMD), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR), rd(GCC_QUP1_SE5_CBCR));
+ 	return false;
+ }
+ 
+@@ -1303,6 +1325,10 @@ static enum touch_chip touch_chip;
  static enum touch_chip
  touch_chip_detect(void)
  {
@@ -88,7 +112,7 @@ index f969cbd..15db80a 100644
  	gpio_configure(PIN_FOCALTECH_ID, 0, PULL_NONE, 2, false);
  	gpio_configure(PIN_GOODIX_ID, 0, PULL_NONE, 2, false);
  	if (gpio_get(PIN_GOODIX_ID) && !gpio_get(PIN_FOCALTECH_ID)) {
-@@ -1336,24 +1359,38 @@ chip_poll(void)
+@@ -1336,24 +1362,38 @@ chip_poll(void)
  static void
  show_state(const char *when)
  {
@@ -131,7 +155,7 @@ index f969cbd..15db80a 100644
  }
  
  static void
-@@ -1378,28 +1415,37 @@ bring_up(void)
+@@ -1378,28 +1418,37 @@ bring_up(void)
  
  	show_state("as found");
  	touch_chip = touch_chip_detect();
@@ -176,7 +200,7 @@ index f969cbd..15db80a 100644
  			return true;
  		}
  		printf("goodix: %s did not answer through the serial engine; trying the pins by hand\n", chip_name());
-@@ -1413,7 +1459,9 @@ bring_up(void)
+@@ -1413,7 +1462,9 @@ bring_up(void)
  		bitbang_in = attempt == 0 ? PIN_MISO : PIN_MOSI;
  		bitbang_out = attempt == 0 ? PIN_MOSI : PIN_MISO;
  		bitbang_init();
@@ -187,7 +211,7 @@ index f969cbd..15db80a 100644
  			printf("goodix: %s answers on pins driven by hand (data in on gpio%u)\n", chip_name(), bitbang_in);
  			return true;
  		}
-@@ -1445,13 +1493,26 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
+@@ -1445,13 +1496,26 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
  	}
  	idle_looks = 80000 / poll_us;   /* a report read every 80 ms even with the line high, in case it is missed */
  
@@ -215,7 +239,7 @@ index f969cbd..15db80a 100644
  		printf("goodix: no %s touch screen\n", chip_name());
  		thread_terminate(current_thread());
  		return;
-@@ -1503,13 +1564,31 @@ void
+@@ -1503,13 +1567,31 @@ void
  redwood_goodix_init(void)
  {
  	uint32_t enabled = 0;
@@ -250,7 +274,7 @@ index f969cbd..15db80a 100644
  	}
  }
 diff --git a/xnu/files/bsd/dev/redwood_input.c b/xnu/files/bsd/dev/redwood_input.c
-index 8076cf0..1c3bfb9 100644
+index 8076cf0..705902c 100644
 --- a/xnu/files/bsd/dev/redwood_input.c
 +++ b/xnu/files/bsd/dev/redwood_input.c
 @@ -216,7 +216,9 @@ redwood_input_init(void)
