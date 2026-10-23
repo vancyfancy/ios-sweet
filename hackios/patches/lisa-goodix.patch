@@ -120,16 +120,17 @@ index f969cbd..8cd2fb5 100644
  	gpio_configure(PIN_FOCALTECH_ID, 0, PULL_NONE, 2, false);
  	gpio_configure(PIN_GOODIX_ID, 0, PULL_NONE, 2, false);
  	if (gpio_get(PIN_GOODIX_ID) && !gpio_get(PIN_FOCALTECH_ID)) {
-@@ -1336,24 +1368,38 @@ chip_poll(void)
+@@ -1336,24 +1368,39 @@ chip_poll(void)
  static void
  show_state(const char *when)
  {
 +	if (lisa_touch) {
-+		printf("goodix: lisa %s: votes %#x, clocks %#x %#x %#x, rate cfg %#x dfs %#x; pins cs/clk/mosi/miso cfg %#x %#x %#x %#x,"
-+		    " reset %#x/%u, int %#x/%u\n", when, rd(GCC_VOTE), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR),
-+		    rd(GCC_QUP1_SE5_CBCR), rd(GCC_QUP1_SE5_CFG), rd(GCC_QUP1_SE5_DFSR), rd(GPIO_CFG(PIN_CS)),
-+		    rd(GPIO_CFG(PIN_CLK)), rd(GPIO_CFG(PIN_MOSI)), rd(GPIO_CFG(PIN_MISO)), rd(GPIO_CFG(PIN_RESET)),
-+		    rd(GPIO_IO(PIN_RESET)), rd(GPIO_CFG(PIN_INT)), rd(GPIO_IO(PIN_INT)));
++		redwood_tl("goodix trace: lisa %s: votes %#x, clocks %#x %#x %#x, rate cfg %#x dfs %#x; pins cs/clk/mosi/miso cfg %#x %#x %#x %#x,"
++		    " reset cfg/io %#x/%#x, int cfg/io %#x/%#x, levels cs/clk/mosi/miso/reset/int=%u/%u/%u/%u/%u/%u\n", when,
++		    rd(GCC_VOTE), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR), rd(GCC_QUP1_SE5_CBCR), rd(GCC_QUP1_SE5_CFG),
++		    rd(GCC_QUP1_SE5_DFSR), rd(GPIO_CFG(PIN_CS)), rd(GPIO_CFG(PIN_CLK)), rd(GPIO_CFG(PIN_MOSI)), rd(GPIO_CFG(PIN_MISO)),
++		    rd(GPIO_CFG(PIN_RESET)), rd(GPIO_IO(PIN_RESET)), rd(GPIO_CFG(PIN_INT)), rd(GPIO_IO(PIN_INT)), gpio_get(PIN_CS),
++		    gpio_get(PIN_CLK), gpio_get(PIN_MOSI), gpio_get(PIN_MISO), gpio_get(PIN_RESET), gpio_get(PIN_INT));
 +		return;
 +	}
  	printf("goodix: %s: votes %#x, clocks %#x %#x %#x, rate cfg %#x dfs %#x; pins cs/clk/mosi/miso cfg %#x %#x %#x %#x,"
