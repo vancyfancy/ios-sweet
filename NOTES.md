@@ -1186,3 +1186,42 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   written or erased. Persistent autoboot remains deferred until partition
   mapping, backups, and a tested recovery path are verified; any destructive
   write still needs confirmation for that exact step.
+
+### 2026-10-23 handoff for next agent
+- Latest committed/pushed source: `fb43b83` (`Touch: split GPIO diagnostics
+  into short records`) on branch `codex/lisa-touch-driver`, remote
+  `fork/codex/lisa-touch-driver`. It includes the short per-pin trace and
+  snapshot after bitbang pin setup. Patch passed clean apply and diff checks
+  against pinned HackiOS v0.1.0.
+- CI run `39886581228` for `fb43b83` was still in progress when handing off;
+  checkout/patch apply had passed and Theos installation was running. Use
+  `gh run watch 39886581228 --exit-status` and then fetch the artifact before
+  another device boot.
+- Latest completed CI/hardware result is run `39886105266`, kernel hash
+  `307f54e85e99816dca9c9fe2ab46b15b3abb9c6b99d4202047116d167c853099`.
+  It booted RAM-only to iOS UI and loader returned `running 0 0`. GPIO trace
+  was truncated, so only initial CFG fields were observed; later GPIO levels
+  remain unknown. The direct GCC trace confirmed QUP S-AHB still halted at
+  `0x8000000a`; M-AHB `0`, SE5/core2x/core `0x4220`; clocks timed out and
+  bitbang probes both returned false. Touch is not working yet.
+- Phone was left in resident `xnuloader` with the previous diagnostic iOS
+  kernel running RAM-only. No storage modifications occurred. No partition,
+  firmware, boot slot, or GPT was written or erased. Persistent autoboot is
+  still not configured.
+- Exact next action after CI: download artifact for `39886581228`, verify
+  SHA-256, make payload with existing `root.apfs` and quiet args
+  `loader_return_after=900 epoch=1792717442 sb_delay=8 touchscreen=1
+  touch_lisa=1 touch_debug=1 cpus=8 bootcpu=7 cpufreq=1`, stop current RAM
+  kernel if needed, stage/run payload in `xnuloader`, capture log, and inspect
+  each `goodix trace: pins ...` record and `bitbang attempt` results. Keep
+  verbose console off; this run is RAM-only.
+- If clocks remain stuck, next root-cause work should investigate why wrapper1
+  QUP S-AHB stays halted despite vote bits high and parent/core statuses
+  `0x4220`. The one-shot S-AHB vote clear/wait/set experiment already failed;
+  avoid broad clock/PMIC writes without source-level justification. Do not
+  upload Goodix firmware until a baseline SPI transfer works.
+- For persistent autoboot or partition work, first gather the read-only live
+  partition/slot map and verify backups plus a recovery route. The device rules
+  require confirmation for each exact destructive step. Preserve bootloaders,
+  recovery, modem, persist, and backups; no GPT changes; approved future iOS
+  root location is existing `userdata` only.
