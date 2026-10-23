@@ -1,5 +1,5 @@
 diff --git a/xnu/files/bsd/dev/redwood_goodix.c b/xnu/files/bsd/dev/redwood_goodix.c
-index f969cbd..6fc8406 100644
+index f969cbd..708cc2e 100644
 --- a/xnu/files/bsd/dev/redwood_goodix.c
 +++ b/xnu/files/bsd/dev/redwood_goodix.c
 @@ -43,6 +43,7 @@ extern vm_offset_t ml_io_map_wcomb(vm_offset_t phys_addr, vm_size_t size);
@@ -77,7 +77,7 @@ index f969cbd..6fc8406 100644
  }
  
  /* ---- clocks (GCC) -------------------------------------------------------------------------------- */
-@@ -307,7 +326,27 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
+@@ -307,7 +326,28 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
  static bool
  clocks_on(void)
  {
@@ -106,7 +106,7 @@ index f969cbd..6fc8406 100644
  	if (rd(GCC_QUP1_SE5_DFSR) & 1) {
  		/* preset rates: the lowest that is at least 4 MHz */
  		for (uint32_t level = 0; level < 8; level++) {
-@@ -338,6 +377,7 @@ clocks_on(void)
+@@ -338,6 +364,7 @@ clocks_on(void)
  		se_clock_select = 0;
  	}
  	wr(GCC_VOTE, rd(GCC_VOTE) | VOTE_QUP1_SE5);
@@ -114,7 +114,7 @@ index f969cbd..6fc8406 100644
  	for (int i = 0; i < 1000; i++) {
  		if (!((rd(GCC_QUP1_M_AHB_CBCR) | rd(GCC_QUP1_S_AHB_CBCR) | rd(GCC_QUP1_SE5_CBCR)) & CLOCK_OFF)) {
  			return true;
-@@ -346,6 +386,7 @@ clocks_on(void)
+@@ -346,6 +373,7 @@ clocks_on(void)
  	}
  	printf("goodix: clocks stay off: %#x %#x %#x\n", rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR),
  	    rd(GCC_QUP1_SE5_CBCR));
@@ -122,43 +122,7 @@ index f969cbd..6fc8406 100644
  	return false;
  }
  
-@@ -601,7 +642,8 @@ static bool (*spi_transfer)(const uint8_t *tx, uint8_t *rx, uint32_t length);
- #define GOODIX_STATUS_REQUEST   0x40
- #define GOODIX_REQUEST_RESET    3
- 
--static uint8_t spi_tx[8 + GOODIX_MAX_READ], spi_rx[8 + GOODIX_MAX_READ];
-+/* Berlin-A (GT9897) needs four read dummy bytes; Berlin-D (GT9916) needs three. */
-+static uint8_t spi_tx[9 + GOODIX_MAX_READ], spi_rx[9 + GOODIX_MAX_READ];
- static uint32_t touch_address, command_address;
- static const char *report_rate = "240";        /* what the status line says (touch_rate=480) */
- static uint32_t max_x = 10800, max_y = 24000;   /* the device tree's; the chip may say otherwise */
-@@ -609,6 +651,8 @@ static uint32_t max_x = 10800, max_y = 24000;   /* the device tree's; the chip m
- static bool
- goodix_read(uint32_t address, uint8_t *data, uint32_t length)
- {
-+	uint32_t prefix = lisa_touch ? 9 : 8;
-+
- 	if (length > GOODIX_MAX_READ) {
- 		return false;
- 	}
-@@ -617,12 +661,12 @@ goodix_read(uint32_t address, uint8_t *data, uint32_t length)
- 	spi_tx[2] = (uint8_t)(address >> 16);
- 	spi_tx[3] = (uint8_t)(address >> 8);
- 	spi_tx[4] = (uint8_t)address;
--	spi_tx[5] = spi_tx[6] = spi_tx[7] = 0xff;
--	memset(spi_tx + 8, 0, length);
--	if (!spi_transfer(spi_tx, spi_rx, 8 + length)) {
-+	memset(spi_tx + 5, 0xff, prefix - 5);
-+	memset(spi_tx + prefix, 0, length);
-+	if (!spi_transfer(spi_tx, spi_rx, prefix + length)) {
- 		return false;
- 	}
--	memcpy(data, spi_rx + 8, length);
-+	memcpy(data, spi_rx + prefix, length);
- 	return true;
- }
- 
-@@ -1303,6 +1347,10 @@ static enum touch_chip touch_chip;
+@@ -1303,6 +1331,10 @@ static enum touch_chip touch_chip;
  static enum touch_chip
  touch_chip_detect(void)
  {
@@ -169,7 +133,7 @@ index f969cbd..6fc8406 100644
  	gpio_configure(PIN_FOCALTECH_ID, 0, PULL_NONE, 2, false);
  	gpio_configure(PIN_GOODIX_ID, 0, PULL_NONE, 2, false);
  	if (gpio_get(PIN_GOODIX_ID) && !gpio_get(PIN_FOCALTECH_ID)) {
-@@ -1336,24 +1384,41 @@ chip_poll(void)
+@@ -1336,24 +1368,41 @@ chip_poll(void)
  static void
  show_state(const char *when)
  {
@@ -215,7 +179,7 @@ index f969cbd..6fc8406 100644
  }
  
  static void
-@@ -1378,28 +1443,37 @@ bring_up(void)
+@@ -1378,28 +1427,37 @@ bring_up(void)
  
  	show_state("as found");
  	touch_chip = touch_chip_detect();
@@ -260,7 +224,7 @@ index f969cbd..6fc8406 100644
  			return true;
  		}
  		printf("goodix: %s did not answer through the serial engine; trying the pins by hand\n", chip_name());
-@@ -1413,7 +1487,10 @@ bring_up(void)
+@@ -1413,7 +1471,10 @@ bring_up(void)
  		bitbang_in = attempt == 0 ? PIN_MISO : PIN_MOSI;
  		bitbang_out = attempt == 0 ? PIN_MOSI : PIN_MISO;
  		bitbang_init();
@@ -272,7 +236,7 @@ index f969cbd..6fc8406 100644
  			printf("goodix: %s answers on pins driven by hand (data in on gpio%u)\n", chip_name(), bitbang_in);
  			return true;
  		}
-@@ -1445,13 +1522,26 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
+@@ -1445,13 +1506,26 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
  	}
  	idle_looks = 80000 / poll_us;   /* a report read every 80 ms even with the line high, in case it is missed */
  
@@ -300,7 +264,7 @@ index f969cbd..6fc8406 100644
  		printf("goodix: no %s touch screen\n", chip_name());
  		thread_terminate(current_thread());
  		return;
-@@ -1503,13 +1593,31 @@ void
+@@ -1503,13 +1577,31 @@ void
  redwood_goodix_init(void)
  {
  	uint32_t enabled = 0;
