@@ -32,7 +32,10 @@ jobs:
           sudo apt-get install -y bash curl sudo
           curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos -o "$RUNNER_TEMP/install-theos"
           bash "$RUNNER_TEMP/install-theos"
-          "$THEOS/bin/install-sdk" 16.5
+          mkdir -p "$THEOS/sdks"
+          curl -fL https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz \
+            -o "$RUNNER_TEMP/iPhoneOS16.5.sdk.tar.xz"
+          tar -xJf "$RUNNER_TEMP/iPhoneOS16.5.sdk.tar.xz" -C "$THEOS/sdks"
           test -x "$THEOS/toolchain/linux/iphone/bin/ld"
           test -d "$THEOS/sdks/iPhoneOS16.5.sdk/usr/include"
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
