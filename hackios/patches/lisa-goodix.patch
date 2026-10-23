@@ -77,12 +77,19 @@ index f969cbd..708cc2e 100644
  }
  
  /* ---- clocks (GCC) -------------------------------------------------------------------------------- */
-@@ -307,7 +326,14 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
+@@ -307,7 +326,21 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
  static bool
  clocks_on(void)
  {
 -	wr(GCC_VOTE, rd(GCC_VOTE) | VOTE_QUP1_CORE_2X | VOTE_QUP1_CORE | VOTE_QUP1_M_AHB | VOTE_QUP1_S_AHB);
 +	if (touch_debug) redwood_tl("goodix trace: GCC pre-vote vote=%#x DFS=%#x cfg=%#x cmd=%#x CBCR M/S/SE=%#x/%#x/%#x core2x/core=%#x/%#x\n", rd(GCC_VOTE), rd(GCC_QUP1_SE5_DFSR), rd(GCC_QUP1_SE5_CFG), rd(GCC_QUP1_SE5_CMD), rd(GCC_QUP1_M_AHB_CBCR), rd(GCC_QUP1_S_AHB_CBCR), rd(GCC_QUP1_SE5_CBCR), rd(gcc + 0x23140), rd(gcc + 0x23138));
++	if (touch_debug) {
++		redwood_tl("goodix trace: enable banks 0x52000=%#x 0x52008=%#x 0x5200c=%#x", rd(gcc + 0x52000), rd(GCC_VOTE), rd(gcc + 0x5200c));
++		for (uint32_t reg = 0x17000; reg <= 0x1700c; reg += 4)
++			redwood_tl("goodix trace: wrap0 rb %#x %#x", reg, rd(gcc + reg));
++		for (uint32_t reg = 0x18000; reg <= 0x18034; reg += 4)
++			redwood_tl("goodix trace: wrap1 rb %#x %#x", reg, rd(gcc + reg));
++	}
 +	uint32_t initial_vote = rd(GCC_VOTE);
 +	wr(GCC_VOTE, initial_vote | VOTE_QUP1_CORE_2X | VOTE_QUP1_CORE | VOTE_QUP1_M_AHB);
 +	/* The firmware can leave this wrapper's S-AHB vote asserted while the branch is halted. */
