@@ -1332,3 +1332,32 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   gets beyond init, repeat wrapper dump and fetch staged logs directly after
   `getvar result`, with no `oem log` call. Do not treat missing dump records as
   clock values.
+
+### 2026-10-23 separate Windows-on-lisa / Mu-Silicium investigation
+- User asked to try Windows on this phone with Mu-Silicium as a task separate
+  from HackiOS. Local Mu-Silicium checkout is `_lisa/reference/Mu-Silicium`
+  at `e51cd877`; its `Platforms/Xiaomi/lisaPkg` provides an AARCH64 lisa UEFI
+  target. The independent `n00b69/woa-lisa` project documents a current
+  Windows-on-ARM path using tailored Mu-Silicium UEFI images and drivers.
+  References: https://github.com/n00b69/woa-lisa/blob/main/guide/3-install.md
+  and https://github.com/n00b69/woa-lisa/blob/main/guide/status.md .
+- Confirmed this handset's active panel by RAM-booting the WOA modified
+  recovery and running `adb shell panel`: `Tianma`. Downloaded the matching
+  `mu-lisa-TIANMA_v2606.08.img` to `/tmp/woa-lisa-assets` (SHA-256
+  `e308d195401ee6ad57b70dd7ff315f48520db51771c6f265b898cf03ed2ff1ce`).
+- Tried `fastboot boot` with that UEFI image. Fastboot accepted and booted the
+  temporary image; USB disappeared during the attempt, then Android
+  re-enumerated (`product:lisa_global`). This does NOT confirm reaching a
+  visible UEFI screen or booting Windows. Current observed system is Android.
+- Read-only Android `/dev/block/by-name` inspection showed the stock Xiaomi
+  partition layout, including `userdata` (`/dev/block/sda33`) and no
+  `WINLISA`/`ESPLISA` partitions. No image was flashed, no partition was
+  created/erased/resized, and no Android or recovery data was changed by this
+  investigation. Do not follow WOA's Diskpart/repartition procedure without
+  first preparing a device-specific backup and exact partition plan, then
+  obtaining the user's explicit confirmation for each destructive step.
+- WOA status reports working touch/display and several other drivers, with
+  GPU still experimental and camera/cellular limitations. Next safe work:
+  inspect/build the separate lisa UEFI workflow and validate its image via
+  RAM-only boot (capture the screen/state); installation requires Windows
+  partitions and destructive partition-layout changes.
