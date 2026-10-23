@@ -45,7 +45,11 @@ jobs:
         run: |
           xnu/apply.sh
           xnu-deps/setup.sh --stage1
-          xnu-deps/setup.sh --stage2
+          if ! xnu-deps/setup.sh --stage2; then
+            echo '--- xnu-deps/exporthdrs.log ---'
+            cat xnu-deps/exporthdrs.log || true
+            exit 1
+          fi
 
       - name: Build lisa kernel
         working-directory: hackios-src
