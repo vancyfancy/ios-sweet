@@ -96,8 +96,10 @@ index f969cbd..708cc2e 100644
 +	wr(GCC_VOTE, rd(GCC_VOTE) & ~VOTE_QUP1_S_AHB);
 +	sleep_us(10);
 +	wr(GCC_VOTE, rd(GCC_VOTE) | VOTE_QUP1_S_AHB);
-+	wr(GCC_QUP1_S_AHB_CBCR, rd(GCC_QUP1_S_AHB_CBCR) & ~CLOCK_OFF);
 +	if (touch_debug) redwood_tl("goodix trace: S-AHB vote retrigger CBCR=%#x\n", rd(GCC_QUP1_S_AHB_CBCR));
++	wr(GCC_QUP1_S_AHB_CBCR, rd(GCC_QUP1_S_AHB_CBCR) & ~CLOCK_OFF);
++	if (touch_debug) redwood_tl("goodix trace: S-AHB halt cleared CBCR=%#x
+", rd(GCC_QUP1_S_AHB_CBCR));
  	if (rd(GCC_QUP1_SE5_DFSR) & 1) {
  		/* preset rates: the lowest that is at least 4 MHz */
  		for (uint32_t level = 0; level < 8; level++) {
