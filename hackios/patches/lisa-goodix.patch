@@ -312,3 +312,4 @@ index 8076cf0..705902c 100644
  	redwood_buttons_init();
  	redwood_battery_init();
  	redwood_ufs_init();
+# auto-trigger
