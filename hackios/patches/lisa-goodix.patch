@@ -154,14 +154,14 @@ index f969cbd..7824f50 100644
  		PE_parse_boot_argn("touch_spi_hz", &spi_hz, sizeof(spi_hz));
  		if (spi_hz < 100000 || spi_hz > 10000000) {
  			spi_hz = 1000000;
-@@ -1445,11 +1483,20 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
+@@ -1445,11 +1483,24 @@ goodix_thread(__unused void *parameter, __unused wait_result_t result)
  	}
  	idle_looks = 80000 / poll_us;   /* a report read every 80 ms even with the line high, in case it is missed */
  
 +	if (touch_debug) {
 +		sleep_ms(5000);
-+		printf("goodix: delayed trace checkpoint; worker is alive after 5 seconds\n");
-+		printf("goodix: worker entered; mapping TLMM/GCC/SE/RSC/command DB\n");
++		redwood_tl("goodix: delayed trace checkpoint; worker is alive after 5 seconds\n");
++		redwood_tl("goodix: worker entered; mapping TLMM/GCC/SE/RSC/command DB\n");
 +	}
  	tlmm = ml_io_map(TLMM_PHYS, TLMM_SIZE);
  	gcc = ml_io_map(GCC_PHYS, GCC_SIZE);
@@ -169,11 +169,16 @@ index f969cbd..7824f50 100644
  	rsc = ml_io_map(RSC_PHYS, RSC_SIZE);
  	cmd_db = ml_io_map_wcomb(CMD_DB_PHYS, CMD_DB_SIZE);      /* memory, not registers: no alignment rules */
 +	if (touch_debug) {
-+		printf("goodix: maps TLMM=%p GCC=%p SE=%p RSC=%p command-DB=%p\n", (void *)tlmm, (void *)gcc,
++		redwood_tl("goodix: maps TLMM=%p GCC=%p SE=%p RSC=%p command-DB=%p\n", (void *)tlmm, (void *)gcc,
 +		    (void *)se, (void *)rsc, (void *)cmd_db);
 +	}
  
- 	if (!bring_up()) {
+-	if (!bring_up()) {
++	bool touch_ready = bring_up();
++	if (touch_debug) {
++		redwood_tl("goodix: hardware bring-up result %u\n", touch_ready);
++	}
++	if (!touch_ready) {
  		printf("goodix: no %s touch screen\n", chip_name());
 @@ -1503,13 +1548,31 @@ void
  redwood_goodix_init(void)
@@ -188,12 +193,12 @@ index f969cbd..7824f50 100644
 +	PE_parse_boot_argn("touch_debug", &debug, sizeof(debug));
 +	touch_debug = debug != 0;
 +	bool has_touchscreen = PE_parse_boot_argn("touchscreen", &enabled, sizeof(enabled));
-+	printf("goodix: init entered; touchscreen boot arg %s, value %u; debug %u\n",
++	redwood_tl("goodix: init entered; touchscreen boot arg %s, value %u; debug %u\n",
 +	    has_touchscreen ? "present" : "absent", enabled, debug);
 +	if (!has_touchscreen || !enabled) {
-+		printf("goodix: init disabled by boot args\n");
++		redwood_tl("goodix: init disabled by boot args\n");
 +		if (touch_debug) {
-+			printf("goodix: trace enabled but touchscreen is disabled\n");
++			redwood_tl("goodix: trace enabled but touchscreen is disabled\n");
 +		}
  		return;
  	}
@@ -203,7 +208,7 @@ index f969cbd..7824f50 100644
 +	lisa_touch = lisa != 0;
 +	result = kernel_thread_start(goodix_thread, NULL, &thread);
 +	if (touch_debug) {
-+		printf("goodix: init starting %s worker; thread start result %d\n", lisa_touch ? "lisa" : "redwood", result);
++		redwood_tl("goodix: init starting %s worker; thread start result %d\n", lisa_touch ? "lisa" : "redwood", result);
 +	}
 +	if (result == KERN_SUCCESS) {
  		thread_deallocate(thread);
@@ -217,9 +222,9 @@ index 6c235a9..f26d8a1 100644
  	exit_call = thread_call_allocate(exit_hold_elapsed, NULL);
  	redwood_cpufreq_init();
  	redwood_virtio_input_init();
-+	printf("redwood input: before Goodix initializer\n");
++	redwood_tl("redwood input: before Goodix initializer\n");
  	redwood_goodix_init();
-+	printf("redwood input: after Goodix initializer\n");
++	redwood_tl("redwood input: after Goodix initializer\n");
  	redwood_buttons_init();
  	redwood_battery_init();
  	redwood_ufs_init();
