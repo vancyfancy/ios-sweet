@@ -963,12 +963,17 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   host setup compilation cannot find `uuid/uuid.h` (`hostcompat.h:44`).
 - CI now installs Ubuntu's `uuid-dev` package before exporting headers. This
   is a build-environment fix; no kernel artifact or hardware validation yet.
-  Next: check the new CI run, fix any further dependency/build errors, retrieve
-  and hash the kernel artifact, then do a RAM-only loader boot when the user is
-  ready. Phone was connected to Android via ADB on 2026-10-23; no reboot or
-  partition write was performed. Persistent autoboot remains unimplemented and
-  requires a verified safe boot path and the per-step destructive confirmation
-  required above.
+- Run `39876397659` passed dependency/header export and compiled/linked the
+  kernel objects, including the BSD build, but failed at dSYM generation:
+  Theos' Linux `xcrun` has no `dsymutil`, leaving `DSYMUTIL` empty and causing
+  `bash: --minimize: command not found`. dSYM is not needed for the device
+  kernel artifact, so the next CI build sets `BUILD_DSYM=0`.
+- Next: check that build, fix any further compile/link errors, retrieve and hash
+  the kernel artifact, then do a RAM-only loader boot when the user is ready.
+  Phone was connected to Android via ADB on 2026-10-23; no reboot or partition
+  write was performed. Persistent autoboot remains unimplemented and requires
+  a verified safe boot path and the per-step destructive confirmation required
+  above.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt

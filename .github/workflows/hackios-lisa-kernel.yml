@@ -56,7 +56,7 @@ jobs:
         run: |
           K=xnu-src/xnu-8796.121.2/BUILD/obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837
           build_status=0
-          ./xnu-build.sh -j"$(nproc)" -k || build_status=$?
+          ./xnu-build.sh -j"$(nproc)" -k BUILD_DSYM=0 || build_status=$?
           test -s "$K"
           echo "xnu-build.sh exit status: $build_status; linked kernel exists"
           mkdir -p out
