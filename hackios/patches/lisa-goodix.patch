@@ -77,7 +77,7 @@ index f969cbd..708cc2e 100644
  }
  
  /* ---- clocks (GCC) -------------------------------------------------------------------------------- */
-@@ -307,7 +326,28 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
+@@ -307,7 +326,21 @@ rcg_rate(uint32_t cfg, uint32_t m, uint32_t not_n_minus_m)
  static bool
  clocks_on(void)
  {
@@ -89,12 +89,6 @@ index f969cbd..708cc2e 100644
 +			redwood_tl("goodix trace: wrap0 rb %#x %#x", reg, rd(gcc + reg));
 +		for (uint32_t reg = 0x18000; reg <= 0x18034; reg += 4)
 +			redwood_tl("goodix trace: wrap1 rb %#x %#x", reg, rd(gcc + reg));
-+		vm_offset_t wrp = ml_io_map(0x00ac0000, 0x100);
-+		if (wrp != 0) {
-+			for (uint32_t off = 0; off < 0x60; off += 4)
-+				redwood_tl("goodix trace: wrp rb %#x %#x", 0xac0000 + off, rd(wrp + off));
-+		}
-+		redwood_tl("goodix trace: enable banks2 0x52010=%#x 0x52014=%#x", rd(gcc + 0x52010), rd(gcc + 0x52014));
 +	}
 +	uint32_t initial_vote = rd(GCC_VOTE);
 +	wr(GCC_VOTE, initial_vote | VOTE_QUP1_CORE_2X | VOTE_QUP1_CORE | VOTE_QUP1_M_AHB);
@@ -312,4 +306,3 @@ index 8076cf0..705902c 100644
  	redwood_buttons_init();
  	redwood_battery_init();
  	redwood_ufs_init();
-# auto-trigger
