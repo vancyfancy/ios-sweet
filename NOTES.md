@@ -991,6 +991,35 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   persistent boot path and its backup/recovery implications have been checked
   and the exact destructive action is confirmed.
 
+### 2026-10-23 lisa touch RAM boot result and init diagnostics
+- Device serial `5b49cac8` was connected to Android; `adb reboot bootloader`
+  followed by read-only fastboot checks reported product `lisa`, unlocked `yes`.
+  `fastboot boot _lisa/boot-images/hackios-lisa-enter.img` was accepted; after
+  10 seconds the resident loader answered as product `xnuloader`.
+- Staged the existing 2,492,207,104-byte `system.apfs` into loader RAM
+  (`fastboot stage` returned OKAY in 78.968 s), then ran the new kernel with
+  `touchscreen=1 touch_lisa=1 cpus=8 bootcpu=7 cpufreq=1` and a 4 MiB root
+  image. XNUP payload SHA-256:
+  `f69e8227a018019affba0708ac1d4ba91baf3f87bc4dcb473d01f59bce57ebf7`.
+  Loader log showed the exact args and `result: running 0 0`; SpringBoard reached
+  the home screen. All actions were RAM-only.
+- User tapped an app icon; it did not open. The live log contained no `goodix:`
+  init/probe messages despite the args being present. `buttons` events were
+  logged, but those are the separate physical volume-button path, not touch.
+  This does not establish that the Goodix thread reached hardware initialization.
+- Stopped the first run with `fastboot oem stop` and restarted the same kernel
+  without `-v` (quiet XNU args); this removed the verbose console overlay. A
+  screenshot was saved at ignored `_lisa/logs/touch-sb-quiet-later.png`; it
+  captured the iOS lock screen. The quiet run remains RAM-only and reports
+  `running 0 0`.
+- Updated `hackios/patches/lisa-goodix.patch` with opt-in `touch_debug=1`
+  messages marking driver init entry, boot-arg parsing, worker start result,
+  worker entry, and MMIO map results. Patch application check against clean
+  HackiOS v0.1.0 passed. Next: commit/push and rebuild, rerun with
+  `touch_debug=1` and no `-v`, then use the resulting trace to fix why touch
+  init/probe is absent. Persistent autoboot remains pending and no partition has
+  been written.
+
 
 ## Status 2026-10-14 late: first XNU boot attempt
 - SWEET kernel builds (CI run 38635343732, patches 0001-0009). Verified offline: arm64, no PAC, no >v8.2 code,
