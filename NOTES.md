@@ -1141,3 +1141,19 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   boot slot, or GPT write/erase was issued. Persistent autoboot stays deferred
   under the per-step destructive-action confirmation rule and absent verified
   backup/recovery path.
+- Follow-up RAM boot of CI `39884308560` (SHA-256
+  `8b778b4c50c1d1349c28e0f1b157d497c10ee21c8b431e3c4f6ef09602b3b53e`)
+  captured GCC registers: before/after votes `0x083c8bc0`, DFS `0x21`, CFG
+  `0x00100000`, CMD `0`, CBCR M-AHB `0`, S-AHB `0x8000000a`, SE5 `0x4220`.
+  At timeout the values were unchanged. Thus vote bits 18-21 and 27 are already
+  high but S-AHB still reports halted; M-AHB and SE5 do not show the halt bit.
+  The QUP1/Yupik register offsets and clock IDs match the local kernel source:
+  SE13 clock ID 0x60 (Yupik GCC clock 96 = wrap1 S5), M/S-AHB IDs 0x68/0x69
+  (104/105), vote register 0x52008, S-AHB branch 0x18008, S5 branch 0x185fc.
+  This makes a simple wrong SE index/offset less likely. It does not prove why
+  the S-AHB vote is ineffective.
+- Next RAM-only experiment: retrigger only the QUP1 S-AHB vote bit (clear it,
+  wait 10 us, set it) and inspect the branch status. This tests whether the
+  inherited asserted-but-halted vote state needs an edge. It touches no storage;
+  the wrapper-wide shared clock could momentarily disturb another QUP1 client,
+  so this remains a one-shot diagnostic, not a persistent change.
