@@ -1057,8 +1057,8 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   then `printf`, then `_redwood_buttons_init` in that order. Runtime behavior
   still contradicts that linked call sequence; cause remains unknown. No touch
   action was tested on this run.
-- Current call-site trace run is still active in RAM, with no `-v`; no phone
-  partition or firmware was written.
+- At the call-site trace checkpoint, iOS was active in RAM with no `-v`; no phone
+  partition or firmware was written. Current device state is unknown after USB disconnect.
 - Commit `c3accbb` added a five-second debug-only delay before the Goodix
   worker's first trace message, to distinguish an early log-capture gap from
   a worker that never starts. CI run `39880756288` succeeded; kernel SHA-256
