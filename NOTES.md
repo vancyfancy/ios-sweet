@@ -1019,6 +1019,13 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   `touch_debug=1` and no `-v`, then use the resulting trace to fix why touch
   init/probe is absent. Persistent autoboot remains pending and no partition has
   been written.
+- Debug build CI `39878319368` succeeded (kernel SHA-256
+  `b1494997e1ca636c4fd6c8244f7e5950ee8b1e0494babca2fb29e78a66f4b883`). The
+  phone ran it with `touch_debug=1`, but the captured loader log still had no
+  `goodix:` lines; XNU did log the full command line. This leaves two concrete
+  possibilities: the initializer is not being called, or the touchscreen arg
+  parser is returning false. The patch now prints an unconditional initializer
+  marker and parsed arg value, so the next run distinguishes those cases.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt

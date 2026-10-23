@@ -1,5 +1,5 @@
 diff --git a/xnu/files/bsd/dev/redwood_goodix.c b/xnu/files/bsd/dev/redwood_goodix.c
-index f969cbd..caed6d2 100644
+index f969cbd..7824f50 100644
 --- a/xnu/files/bsd/dev/redwood_goodix.c
 +++ b/xnu/files/bsd/dev/redwood_goodix.c
 @@ -43,6 +43,7 @@ extern vm_offset_t ml_io_map_wcomb(vm_offset_t phys_addr, vm_size_t size);
@@ -182,15 +182,16 @@ index f969cbd..caed6d2 100644
 +	kern_return_t result;
  	thread_t thread;
  
+-	if (!PE_parse_boot_argn("touchscreen", &enabled, sizeof(enabled)) || !enabled) {
 +	PE_parse_boot_argn("touch_debug", &debug, sizeof(debug));
 +	touch_debug = debug != 0;
-+	if (touch_debug) {
-+		printf("goodix: init entered; touchscreen boot arg %s, value %u\n",
-+		    PE_parse_boot_argn("touchscreen", &enabled, sizeof(enabled)) ? "present" : "absent", enabled);
-+	}
- 	if (!PE_parse_boot_argn("touchscreen", &enabled, sizeof(enabled)) || !enabled) {
++	bool has_touchscreen = PE_parse_boot_argn("touchscreen", &enabled, sizeof(enabled));
++	printf("goodix: init entered; touchscreen boot arg %s, value %u; debug %u\n",
++	    has_touchscreen ? "present" : "absent", enabled, debug);
++	if (!has_touchscreen || !enabled) {
++		printf("goodix: init disabled by boot args\n");
 +		if (touch_debug) {
-+			printf("goodix: init disabled by boot args\n");
++			printf("goodix: trace enabled but touchscreen is disabled\n");
 +		}
  		return;
  	}
