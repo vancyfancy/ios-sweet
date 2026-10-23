@@ -1157,3 +1157,10 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   inherited asserted-but-halted vote state needs an edge. It touches no storage;
   the wrapper-wide shared clock could momentarily disturb another QUP1 client,
   so this remains a one-shot diagnostic, not a persistent change.
+- CI run `39884994316` succeeded; artifact kernel SHA-256
+  `a43d92b766dae4f1cfd279bf99b7c4d8b7e962377ba5c0a6493b05b050b9b5c4`.
+  On its RAM boot, clearing QUP1 S-AHB vote for 10 us and setting it again
+  left S-AHB CBCR at `0x8000000a`; QUP1 vote remained `0x083c8bc0`, and the
+  clock timeout persisted. So an S-AHB-only vote edge did not release it.
+  Next step is to capture QUP1 core_2x/core halt registers alongside AHB and
+  SE5 before considering any broader wrapper vote sequence.
