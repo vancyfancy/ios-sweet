@@ -1274,3 +1274,25 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   semantics + catch a missed enable bank. Nothing has been written or flashed;
   every experiment remains RAM-only; the iOS run was ended via `oem reboot`
   back to Android for these read-only checks.
+
+### 2026-10-23 wrapper-dump patch recovery
+- The previous handoff's patch edits were followed by commits `0229dab`
+  (wrapper dump) and `22e593f` (attempted hunk-count repair). The latter
+  accidentally removed almost all of `hackios/patches/lisa-goodix.patch`;
+  CI `39890066788` failed while applying the malformed wrapper patch, and
+  CI `39890135370` failed on the truncated patch. No device boot or storage
+  operation followed those failed builds.
+- Restored the known-good full patch from commit `1e0caeb` (CI
+  `39888517947` succeeded), applied it to a clean pinned HackiOS v0.1.0 source
+  tree, added the wrapper register read-only dump and GCC enable-bank reads to
+  `clocks_on()`, then regenerated `lisa-goodix.patch` with `git diff`. This
+  yields `@@ -307,7 +326,27 @@`: the previous hunk had 21 new-side lines and the
+  wrapper change adds six source lines, so the correctly counted result is 27.
+  The generated patch passes both `git diff --check` and clean `git apply
+  --check`. This intentionally uses the diff-derived count; the prior +26
+  count was corrupt.
+- Next: commit/push the restored patch plus this note, build via
+  `gh run watch <new-run-id> --exit-status`, then retrieve the artifact and
+  inspect the read-only QUP wrapper/GCC register dump through a RAM-only boot.
+  Do not run the experiment if CI patch application/build fails. Phone and
+  partitions remain as recorded above; no persistent changes were made.
