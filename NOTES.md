@@ -1164,3 +1164,25 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   clock timeout persisted. So an S-AHB-only vote edge did not release it.
   Next step is to capture QUP1 core_2x/core halt registers alongside AHB and
   SE5 before considering any broader wrapper vote sequence.
+
+### 2026-10-23 GPIO trace checkpoint
+- Commit `ab67e39` adds lisa GPIO-level snapshots to the Goodix state logger.
+  CI run `39886105266` succeeded. Kernel artifact SHA-256:
+  `307f54e85e99816dca9c9fe2ab46b15b3abb9c6b99d4202047116d167c853099`.
+- RAM-only boot of that kernel returned `running 0 0`; iOS reached its UI and
+  the loader captured the Goodix worker trace. The `show_state` record exceeded
+  the loader line limit and was truncated, so GPIO levels from that run are
+  inconclusive. The confirmed clock values remain M-AHB `0`, S-AHB
+  `0x8000000a`, SE5/core2x/core `0x4220`; clock setup timed out and both
+  bitbang probes returned false. The initial pin CFG snapshot showed CS/CLK
+  `0x280`, MOSI `0`, MISO `0x280`, reset CFG/IO `0x2c3/0x3`, and IRQ CFG/IO
+  `0xc3/0`; that snapshot predates power-on and its levels were truncated.
+- Follow-up patch now splits GPIO and clock state into short loader-log lines
+  and captures pins immediately after each bitbang setup. Patch applies cleanly
+  against the pinned HackiOS v0.1.0 source. Next: commit/push, CI build, repeat
+  RAM boot with verbose display off and inspect each pin record.
+- Current phone is in the resident `xnuloader` fastboot path running the
+  diagnostic iOS kernel in RAM. No partition, boot slot, firmware, or GPT was
+  written or erased. Persistent autoboot remains deferred until partition
+  mapping, backups, and a tested recovery path are verified; any destructive
+  write still needs confirmation for that exact step.
