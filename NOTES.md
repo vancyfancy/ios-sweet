@@ -975,6 +975,22 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
   a verified safe boot path and the per-step destructive confirmation required
   above.
 
+### 2026-10-23 milestone: lisa touch kernel artifact built
+- CI run `39876925691` succeeded (commit `44beae8`; SDK setup, XNU dependency
+  export, kernel compile/link, and artifact upload all green).
+- Downloaded artifact `hackios-lisa-kernel` to ignored
+  `_lisa/ci-kernel-touch/`. `mach.development.lisa` is an arm64 Mach-O,
+  15,161,072 bytes, SHA-256
+  `5abe352be870125759cdd45706e98159e959f37e3dca56a608f4d2fec2c17641`.
+  Embedded strings confirm `touch_lisa`, lisa LDO2/LDO7 handling, and the
+  Goodix probe/report path are present. This confirms compilation only; touch
+  and firmware-bin upload are not yet validated on hardware.
+- Next: use the proven resident-loader chain with this kernel and existing
+  userland, passing `touchscreen=1 touch_lisa=1`; collect the driver log and
+  screenshot. Keep this RAM-only. Do not flash a boot partition until the
+  persistent boot path and its backup/recovery implications have been checked
+  and the exact destructive action is confirmed.
+
 
 ## Status 2026-10-14 late: first XNU boot attempt
 - SWEET kernel builds (CI run 38635343732, patches 0001-0009). Verified offline: arm64, no PAC, no >v8.2 code,
