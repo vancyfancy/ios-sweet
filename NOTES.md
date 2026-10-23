@@ -1044,6 +1044,21 @@ Bookkeeping: fork = vancyfancy/ios-sweet; _lisa/ = gitignored (device artifacts 
 - Persistent autoboot remains unimplemented pending partition-map/backup and
   recovery review plus confirmation of the exact destructive write. Android,
   bootloaders, recovery, modem, persist, and backups remain untouched.
+- Follow-up commit `fb9b042` added before/after markers around
+  `redwood_goodix_init()` in `redwood_input_init()`. Patch application passed
+  against the pinned source. CI run `39879577257` succeeded; kernel SHA-256
+  `3797754d629aeb5d765769051d9331fd4daf63f6aec55330a6adf6346566f0b8`.
+- The new kernel was RAM-booted with the same quiet/debug args. Loader result
+  was `running 0 0`, and the home screen is visible in
+  `_lisa/logs/touch-callsite-current.png`. The full log has button-driver
+  startup lines but neither call-site marker nor any `goodix:` line. The
+  artifact contains both marker strings, and `llvm-objdump` confirms the
+  `_redwood_input_init` instructions call `printf`, `_redwood_goodix_init`,
+  then `printf`, then `_redwood_buttons_init` in that order. Runtime behavior
+  still contradicts that linked call sequence; cause remains unknown. No touch
+  action was tested on this run.
+- Current call-site trace run is still active in RAM, with no `-v`; no phone
+  partition or firmware was written.
 
 
 ## Status 2026-10-14 late: first XNU boot attempt
